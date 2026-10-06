@@ -1,0 +1,48 @@
+(1) KHi tiến hành báo cáo, thứ tự sẽ tương tự danh sách nhóm. Đọc kĩ phần Mô tả Đề tài.  
+
+(2) Mỗi nhóm chuẩn bị: 
+(a) Slide (tầm 5-7 Slide) và trình bày trong 5 phút. Nội dung tập trung: 
+  Kiến trúc & tổ chức dự án
+  Thiết kế UI/UX
+  Backend & Database (nếu có)
+  Quy trình SDLC (Software Development Life Cycle) - Vai trò các thành viên trong nhóm
+  Nội dung đặc biệt có hiện thực trong Project này (Cache, Perfomance ...)
+
+(b) Video (tầm 1-3 phút), giới thiệu về chương trình.
+
+I. Yêu cầu sản phẩm (Deliverable)
+Sinh viên cần nộp:
+- Tài liệu SDLC đầy đủ (phân theo giai đoạn)
+- Sản phẩm chạy được (prototype hoặc MVP)
+- Source code & hướng dẫn triển khai
+- Báo cáo nhóm (slide)
+
+II. Yêu cầu về quy trình
+1. Requirement Analysis
+- Thu thập yêu cầu từ người dùng giả định
+- Xác định use case, actor, chức năng chính
+- Tài liệu yêu cầu (SRS – Software Requirement Specification)
+
+2. System Design
+- Thiết kế kiến trúc hệ thống (frontend, backend, DB, API)
+- Vẽ sơ đồ UML: Use Case, Class, Sequence, ERD 
+- Cung cấp Tài liệu thiết kế (SDS – Software Design Specification) 
+
+3. Implementation
+- Xây dựng code theo thiết kế
+- Có phân chia module rõ ràng
+- Tuân thủ coding standard 
+- Cung cấp Source code + hướng dẫn chạy
+
+4. Testing
+- Thiết kế test case
+- Thực hiện Unit test, Integration test
+- Ghi lại kết quả test
+
+5. Deployment
+- Triển khai lên môi trường giả lập hoặc test
+- Viết hướng dẫn cài đặt
+
+6. Maintenance & Improvement
+- Ghi nhận lỗi, đề xuất cải tiến
+

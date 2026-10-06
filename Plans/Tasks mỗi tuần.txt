@@ -1,0 +1,8 @@
+Tuần 1 (Tuần này - Đầu tháng 10): Chốt tính năng (MVP), Setup Project & Viết SRS.
+Tuần 2 (Giữa tháng 10): Thiết kế Database, Vẽ UML, Viết SDS & Code Base UI.
+Tuần 3 (Cuối tháng 10): Code luồng Đăng nhập/Đăng ký & Màn hình Trang chủ (Home).
+Tuần 4 (Cuối tháng 10): Code luồng Chi tiết sản phẩm & Tìm kiếm.
+Tuần 5 (Đầu tháng 11): Code luồng Giỏ hàng (Cart) & Thanh toán (Checkout).
+Tuần 6 (Giữa tháng 11): Viết Test Case, Fix Bug & Tối ưu hiệu năng (Nội dung đặc biệt báo cáo).
+Tuần 7 (Cuối tháng 11): Ghép toàn bộ tài liệu Word SDLC, Thiết kế Slide.
+Tuần 8 (Cuối tháng 11): Quay Video Demo, Báo cáo thử & Nộp bài.

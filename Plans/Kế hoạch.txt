@@ -1,0 +1,99 @@
+# Kế Hoạch Thực Hiện Đề Tài: E-Commerce Market (React Native & TypeScript)
+
+**Mô tả:** Đồ án môn học Lập trình thiết bị di động.
+**Số lượng thành viên:** 2 người (Thành viên A & Thành viên B).
+**Mục tiêu:** Hoàn thành toàn bộ Source Code (MVP), Báo cáo (Word), Slide thuyết trình và Video demo theo đúng yêu cầu vòng đời phát triển phần mềm (SDLC).
+
+---
+
+## Phân công vai trò dự kiến
+Để tối ưu hóa công việc, 2 thành viên nên chia vai trò chính nhưng vẫn hỗ trợ nhau (Cross-functional):
+* **Thành viên A (Tech Lead / Backend / Logic):** Chịu trách nhiệm chính về kiến trúc dự án, Backend (Firebase hoặc NodeJS giả lập), Database, xử lý logic lõi (Giỏ hàng, Thanh toán), tài liệu thiết kế hệ thống.
+* **Thành viên B (Frontend / UI-UX / Tester):** Chịu trách nhiệm chính về giao diện UI/UX (React Native), kết nối API, hiệu năng ứng dụng, viết Test case và tài liệu phân tích yêu cầu.
+
+---
+
+## Lộ trình thực hiện chi tiết (Timeline)
+
+Giả sử quỹ thời gian là **6 - 8 tuần**.
+
+### Giai đoạn 1: Requirement Analysis (Phân tích yêu cầu)
+* **Thành viên A:** 
+  * Định hình Scope dự án (MVP): Đăng nhập, Xem sản phẩm, Giỏ hàng, Thanh toán, Lịch sử đơn hàng.
+  * Hỗ trợ B định nghĩa Use Case.
+* **Thành viên B:**
+  * Thu thập và viết **Tài liệu yêu cầu (SRS)** (File Word).
+  * Vẽ Wireframe/Mockup (Figma) cơ bản cho luồng người dùng (User Flow).
+* **Deliverable:** Tài liệu SRS, Mockup UI.
+
+### Giai đoạn 2: System Design (Thiết kế hệ thống)
+* **Thành viên A:**
+  * Thiết kế kiến trúc (Architecture): Chọn State Management (Redux Toolkit hoặc Zustand), thư viện Navigation.
+  * Thiết kế DB (ERD) và API Endpoints.
+  * Bắt đầu viết **Tài liệu thiết kế (SDS)** (File Word).
+* **Thành viên B:**
+  * Vẽ các biểu đồ UML: Use Case, Class Diagram, Sequence Diagram.
+  * Tích hợp các biểu đồ vào tài liệu SDS.
+* **Deliverable:** Tài liệu SDS, Biểu đồ UML, Sơ đồ Database (ERD).
+
+### Giai đoạn 3: Implementation - Sprint 1 (Khởi tạo & Core UI)
+* **Thành viên A:**
+  * Setup Base Project (React Native + TypeScript, ESLint, Prettier).
+  * Cấu hình Backend (Gợi ý dùng Firebase cho nhanh: Auth, Firestore cho Sản phẩm & Đơn hàng).
+  * Viết API/Hàm xử lý cho Đăng nhập/Đăng ký.
+* **Thành viên B:**
+  * Code UI các màn hình cơ bản: Login/Register, Home (Danh sách sản phẩm), Product Detail (Chi tiết sản phẩm).
+  * Phân chia Component rõ ràng, chuẩn Coding standard.
+* **Deliverable:** Project chạy được các màn hình đầu tiên, có kết nối dữ liệu giả/Backend.
+
+### Giai đoạn 4: Implementation - Sprint 2 (Tính năng phức tạp)
+* **Thành viên A:**
+  * Xử lý Logic Giỏ hàng (Cart) và Thanh toán (Checkout) - Lưu trạng thái Local (AsyncStorage) hoặc Global.
+  * Code chức năng Lịch sử đơn hàng, Quản lý trạng thái (State Management).
+  * Hiện thực phần công nghệ đặc biệt: **Caching** dữ liệu bằng React Query hoặc **Tối ưu Image load** (FastImage).
+* **Thành viên B:**
+  * Code UI màn hình Giỏ hàng, Thanh toán, Profile người dùng.
+  * Tích hợp API thực tế vào UI, làm hiệu ứng Animation mượt mà.
+* **Deliverable:** Hoàn thành mã nguồn (Source Code MVP).
+
+### Giai đoạn 5: Testing (Kiểm thử)
+* **Thành viên B:**
+  * Thiết kế Test case (File Word/Excel).
+  * Thực hiện test thủ công (Manual Testing) theo các luồng chính.
+  * Viết tài liệu Ghi nhận kết quả test.
+* **Thành viên A:**
+  * Fix bugs (Backend/Logic).
+  * Viết một số Unit Test cơ bản (Jest) cho các hàm xử lý logic quan trọng (như tính tổng tiền giỏ hàng).
+* **Deliverable:** Ứng dụng ổn định, Tài liệu Test case & Kết quả test.
+
+### Giai đoạn 6: Deployment & Documentation (Đóng gói & Báo cáo)
+* **Thành viên A:**
+  * Đóng gói file APK (Android) hoặc chuẩn bị môi trường chạy thật.
+  * Viết **Hướng dẫn cài đặt & triển khai** (File README.md hoặc Word).
+  * Tổng hợp và hoàn thiện toàn bộ **Tài liệu SDLC** (Gộp SRS, SDS, Testing, Deployment vào 1 file Word duy nhất).
+* **Thành viên B:**
+  * Chuẩn bị **Slide thuyết trình** (5-7 slides theo cấu trúc bắt buộc: Kiến trúc, UI/UX, DB, SDLC, Tính năng đặc biệt).
+  * Viết Kịch bản cho video 1-3 phút. Quay và edit **Video giới thiệu**.
+* **Deliverable:** Tài liệu SDLC Final (Word), Slide (PPTX), Video (MP4), Source Code Final.
+
+---
+
+## 📋 Danh sách công việc cần chuẩn bị cho buổi báo cáo (Theo đúng mô tả)
+
+1. **Chuẩn bị Slide (5-7 Slide, 5 phút trình bày):**
+   * Slide 1: Tên đề tài, Danh sách nhóm (Vai trò từng người).
+   * Slide 2: Kiến trúc & Tổ chức dự án (Folder structure, Tech Stack).
+   * Slide 3: Thiết kế UI/UX (Show màn hình tiêu biểu).
+   * Slide 4: Backend & Database (Sơ đồ ERD hoặc luồng kết nối API).
+   * Slide 5: Quy trình SDLC & Role của mỗi thành viên.
+   * Slide 6: Nội dung đặc biệt (Ví dụ: App có dùng Redux Toolkit Query để Cache dữ liệu, Dùng Reanimated cho UX, tối ưu FlatList...).
+2. **Video demo (1-3 phút):** 
+   * Quay màn hình (Screen record) các luồng thao tác từ lúc mở app, đăng nhập, mua hàng, đến lúc thanh toán xong. Thêm voice hoặc text thuyết minh.
+3. **Thư mục nộp bài:**
+   * Thư mục `SourceCode` (bỏ node_modules) + file `README.md` (hướng dẫn chạy `npm install` & `npx expo start` hoặc `npx react-native run-android`).
+   * Thư mục `Document` (Tài liệu Word SDLC, Slide).
+   * File `VideoDemo.mp4` (Hoặc link Youtube/Drive).
+
+## Lời khuyên
+* Vì chỉ có 2 người, hãy dùng **Expo** kết hợp với **Firebase** để phát triển ứng dụng di động một cách nhanh chóng nhất, bỏ qua gánh nặng setup môi trường Native (Java/Xcode) và viết Backend Server riêng.
+* Phần **Tính năng đặc biệt**, hãy chú ý tối ưu hóa `FlatList` (dùng `initialNumToRender`, `getItemLayout`) để load sản phẩm không bị giật lag, đây là điểm rất dễ ăn điểm khi làm E-Commerce.
