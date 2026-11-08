@@ -9,6 +9,7 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,12 +21,18 @@ import { isValidEmail, isValidPassword } from '../../src/utils/format';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, loginAsGuest } = useAuth();
+  const { login, loginAsGuest, sendPasswordResetEmail } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Quên mật khẩu state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
   const showAlert = (title: string, message: string) => {
     Alert.alert(title, message);
@@ -55,9 +62,35 @@ export default function LoginScreen() {
       await login(trimmedEmail, password);
       router.replace('/(tabs)/home');
     } catch (error) {
-      showAlert('Đăng nhập thất bại', error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+      showAlert('Đăng nhập thất bại', error instanceof Error ? error.message : 'Thông tin đăng nhập không chính xác.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendReset = async () => {
+    const trimmed = (forgotEmail || email).trim();
+    if (!trimmed) {
+      setForgotError('Vui lòng nhập email tài khoản.');
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      setForgotError('Email không đúng định dạng.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await sendPasswordResetEmail(trimmed);
+      setShowForgotModal(false);
+      Alert.alert(
+        'Đã gửi email khôi phục',
+        `Hướng dẫn đặt lại mật khẩu đã được gửi đến email ${trimmed}. Vui lòng kiểm tra hộp thư đến hoặc mục thư rác.`
+      );
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : 'Không thể gửi email đặt lại mật khẩu.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -153,6 +186,22 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            {/* Quên mật khẩu link */}
+            <View style={styles.forgotPasswordRow}>
+              <Pressable
+                onPress={() => {
+                  setForgotEmail(email);
+                  setForgotError('');
+                  setShowForgotModal(true);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Quên mật khẩu"
+              >
+                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+              </Pressable>
+            </View>
+
             {/* Login button */}
             <PrimaryButton
               title="Đăng nhập"
@@ -192,6 +241,70 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal Khôi phục mật khẩu (UC001 3a) */}
+      <Modal
+        visible={showForgotModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowForgotModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.forgotIconWrap}>
+                <Ionicons name="key-outline" size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Khôi phục mật khẩu</Text>
+              <Text style={styles.modalSubtitle}>
+                Nhập địa chỉ email tài khoản của bạn. Hệ thống sẽ gửi email chứa liên kết đặt lại mật khẩu an toàn.
+              </Text>
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={colors.placeholder}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Nhập địa chỉ email"
+                placeholderTextColor={colors.placeholder}
+                value={forgotEmail}
+                onChangeText={setForgotEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {forgotError ? <Text style={styles.forgotErrorText}>{forgotError}</Text> : null}
+
+            <View style={styles.modalButtonRow}>
+              <Pressable
+                style={({ pressed }) => [styles.cancelModalBtn, pressed && styles.pressed]}
+                onPress={() => setShowForgotModal(false)}
+                disabled={forgotLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Hủy bỏ"
+              >
+                <Text style={styles.cancelModalText}>Hủy</Text>
+              </Pressable>
+              <PrimaryButton
+                title="Gửi liên kết"
+                loading={forgotLoading}
+                onPress={handleSendReset}
+                style={styles.submitModalBtn}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -290,8 +403,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: -spacing.sm,
   },
+  forgotPasswordRow: {
+    alignItems: 'flex-end',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
   loginButton: {
-    marginTop: 24,
+    marginTop: 18,
   },
   footer: {
     marginTop: 28,
@@ -328,5 +451,81 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  forgotIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(238, 77, 45, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.dark,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  forgotErrorText: {
+    fontSize: 12.5,
+    color: colors.danger,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    gap: spacing.md,
+  },
+  cancelModalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  cancelModalText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  submitModalBtn: {
+    flex: 1,
+    height: 48,
   },
 });

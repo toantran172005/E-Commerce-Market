@@ -111,8 +111,12 @@ test('AuthService: login rejects invalid password', async () => {
     async () => {
       await AuthService.login('demo@shop.vn', 'wrongpassword');
     },
-    (err) => err?.code === 'AUTH_INVALID_CREDENTIALS' || err?.message?.includes('không đúng'),
+    (err) => err?.code === 'AUTH_INVALID_CREDENTIALS' || err?.message?.includes('chính xác') || err?.message?.includes('không đúng'),
   );
+});
+
+test('AuthService: sendPasswordResetEmail sends reset instructions for valid email', async () => {
+  await AuthService.sendPasswordResetEmail('demo@shop.vn');
 });
 
 test('AuthService: loginAsGuest returns guest user profile', async () => {

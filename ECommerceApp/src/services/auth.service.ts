@@ -4,6 +4,7 @@ import {
   signOut,
   signInAnonymously,
   updateProfile as updateFirebaseProfile,
+  sendPasswordResetEmail as sendFirebasePasswordReset,
   onAuthStateChanged,
   type User,
 } from 'firebase/auth';
@@ -41,7 +42,7 @@ export const AuthService = {
     if (IS_MOCK_MODE) {
       const user = mockUsersDb.find((u) => u.email.toLowerCase() === trimmedEmail.toLowerCase());
       if (!user || user.password !== password) {
-        apiError('AUTH_INVALID_CREDENTIALS', 'Email hoặc mật khẩu không chính xác.');
+        apiError('AUTH_INVALID_CREDENTIALS', 'Thông tin đăng nhập không chính xác.');
       }
       return toSafeMockUser(user);
     }
@@ -55,7 +56,27 @@ export const AuthService = {
       if (mockMatch && mockMatch.password === password) {
         return toSafeMockUser(mockMatch);
       }
-      throw mapFirebaseError(err, 'Email hoặc mật khẩu không chính xác.');
+      throw mapFirebaseError(err, 'Thông tin đăng nhập không chính xác.');
+    }
+  },
+
+  /** Gửi email đặt lại mật khẩu (UC001 - Quên mật khẩu) */
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      apiError('AUTH_INVALID_INPUT', 'Vui lòng nhập địa chỉ email cần khôi phục mật khẩu.');
+    }
+    if (IS_MOCK_MODE) {
+      const exists = mockUsersDb.some((u) => u.email.toLowerCase() === trimmed.toLowerCase());
+      if (!exists && trimmed !== DEMO_USER.email) {
+        apiError('AUTH_USER_NOT_FOUND', 'Email không tồn tại trong hệ thống.');
+      }
+      return;
+    }
+    try {
+      await sendFirebasePasswordReset(auth, trimmed);
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể gửi email đặt lại mật khẩu. Vui lòng kiểm tra lại địa chỉ email.');
     }
   },
 

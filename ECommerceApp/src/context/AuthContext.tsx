@@ -19,6 +19,7 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (patch: Partial<UserProfile>) => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -66,6 +67,10 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
     setUser(updated);
   }, [user]);
 
+  const sendPasswordResetEmail = useCallback(async (email: string) => {
+    await AuthService.sendPasswordResetEmail(email);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -76,8 +81,9 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
       register,
       logout,
       updateProfile,
+      sendPasswordResetEmail,
     }),
-    [user, isLoading, login, loginAsGuest, register, logout, updateProfile],
+    [user, isLoading, login, loginAsGuest, register, logout, updateProfile, sendPasswordResetEmail],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
