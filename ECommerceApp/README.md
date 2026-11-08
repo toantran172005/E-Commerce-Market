@@ -23,9 +23,6 @@ npm install
 ### 2.2. Cấu hình biến môi trường
 Tạo file `.env` tại thư mục `ECommerceApp/` dựa theo mẫu `.env.example`:
 ```env
-# DeepSeek API Key (nếu sử dụng tính năng AI code generation)
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
-
 # Firebase Configuration
 EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSy...
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=e-commerce-market-e2875.firebaseapp.com
