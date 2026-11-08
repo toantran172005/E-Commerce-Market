@@ -20,6 +20,8 @@ import {
   SecondaryButton,
   ScreenHeader,
   Toast,
+  InvoiceModal,
+  ReviewModal,
 } from '../../src/components';
 import { colors, radius, spacing } from '../../src/constants/theme';
 import { useOrders } from '../../src/context/OrdersContext';
@@ -75,6 +77,8 @@ export default function OrderDetailScreen() {
   const [canceling, setCanceling] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [invoiceVisible, setInvoiceVisible] = useState(false);
+  const [reviewVisible, setReviewVisible] = useState(false);
 
   const itemCount = useMemo(
     () => (order ? order.items.reduce((sum, item) => sum + item.quantity, 0) : 0),
@@ -128,7 +132,7 @@ export default function OrderDetailScreen() {
   };
 
   const handleInvoice = () => {
-    showToast('Hoá đơn đã được gửi đến email của bạn.');
+    setInvoiceVisible(true);
   };
 
   if (loading) {
@@ -367,20 +371,39 @@ export default function OrderDetailScreen() {
 
       {/* Bottom actions */}
       <View style={styles.bottomBar}>
-        <SecondaryButton
-          title="Huỷ đơn"
-          onPress={() => setCancelVisible(true)}
-          disabled={!canCancel || canceling}
-          loading={canceling}
-          style={styles.cancelBtn}
-        />
-        <PrimaryButton
-          title="Theo dõi đơn"
-          onPress={handleTrackOrder}
-          icon="navigate"
-          disabled={order.status === 'cancelled'}
-          style={styles.trackBtn}
-        />
+        {order.status === 'delivered' ? (
+          <>
+            <SecondaryButton
+              title="Xem hóa đơn"
+              onPress={() => setInvoiceVisible(true)}
+              icon="receipt-outline"
+              style={styles.cancelBtn}
+            />
+            <PrimaryButton
+              title="Đánh giá sản phẩm"
+              onPress={() => setReviewVisible(true)}
+              icon="star"
+              style={styles.trackBtn}
+            />
+          </>
+        ) : (
+          <>
+            <SecondaryButton
+              title="Huỷ đơn"
+              onPress={() => setCancelVisible(true)}
+              disabled={!canCancel || canceling}
+              loading={canceling}
+              style={styles.cancelBtn}
+            />
+            <PrimaryButton
+              title="Theo dõi đơn"
+              onPress={handleTrackOrder}
+              icon="navigate"
+              disabled={order.status === 'cancelled'}
+              style={styles.trackBtn}
+            />
+          </>
+        )}
       </View>
 
       <ConfirmSheet
@@ -394,6 +417,19 @@ export default function OrderDetailScreen() {
           void handleCancelOrder();
         }}
         onCancel={() => setCancelVisible(false)}
+      />
+
+      <InvoiceModal
+        visible={invoiceVisible}
+        onClose={() => setInvoiceVisible(false)}
+        order={order}
+      />
+
+      <ReviewModal
+        visible={reviewVisible}
+        onClose={() => setReviewVisible(false)}
+        items={order.items}
+        onSuccess={(msg) => showToast(msg)}
       />
 
       <Toast

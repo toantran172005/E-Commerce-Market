@@ -7,6 +7,7 @@ import {
   where,
   orderBy,
   limit as fsLimit,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
@@ -230,5 +231,30 @@ export const CatalogService = {
     } catch {
       return MOCK_REVIEWS.filter((r) => r.productId === productId);
     }
+  },
+
+  /** Thêm đánh giá mới cho sản phẩm (lưu vào Firestore và local mock) */
+  async addProductReview(
+    productId: string,
+    review: Omit<Review, 'id' | 'productId'>,
+  ): Promise<Review> {
+    const newReview: Review = {
+      id: `rev-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      productId,
+      ...review,
+      createdAt: review.createdAt || new Date().toISOString(),
+    };
+
+    if (!IS_MOCK_MODE) {
+      try {
+        const ref = doc(collection(db, 'products', productId, 'reviews'), newReview.id);
+        await setDoc(ref, newReview);
+      } catch {
+        // Fallback below
+      }
+    }
+
+    MOCK_REVIEWS.unshift(newReview);
+    return newReview;
   },
 };

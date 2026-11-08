@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -38,6 +40,31 @@ export default function CheckoutScreen() {
   const paymentMethods = usePaymentMethods();
 
   const [submitError, setSubmitError] = useState('');
+  const [voucherCodeInput, setVoucherCodeInput] = useState('');
+  const [voucherError, setVoucherError] = useState('');
+  const [applyingVoucher, setApplyingVoucher] = useState(false);
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCodeInput.trim()) {
+      setVoucherError('Vui lòng nhập mã ưu đãi.');
+      return;
+    }
+    setVoucherError('');
+    setApplyingVoucher(true);
+    try {
+      await cart.applyVoucher(voucherCodeInput.trim());
+      setVoucherCodeInput('');
+    } catch (err: any) {
+      setVoucherError(err?.message || 'Mã ưu đãi không hợp lệ.');
+    } finally {
+      setApplyingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    cart.removeVoucher();
+    setVoucherError('');
+  };
 
   const selectedItems = useMemo(
     () => cart.items.filter((item) => item.selected),
@@ -105,8 +132,29 @@ export default function CheckoutScreen() {
     try {
       await checkout.placeOrder();
       router.replace('/checkout-success');
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+    } catch (error: any) {
+      const errMsg = error?.message || 'Đã có lỗi xảy ra.';
+      if (error?.code === 'OUT_OF_STOCK' || errMsg.includes('kho') || errMsg.includes('tồn kho')) {
+        Alert.alert(
+          'Sản phẩm đã hết hàng',
+          errMsg + '\n\nVui lòng kiểm tra lại giỏ hàng của bạn.',
+          [
+            { text: 'Về giỏ hàng', onPress: () => router.replace('/cart') },
+            { text: 'Đóng', style: 'cancel' },
+          ],
+        );
+      } else if (error?.code === 'PAYMENT_FAILED') {
+        Alert.alert(
+          'Thanh toán không thành công',
+          'Giao dịch thanh toán trực tuyến bị gián đoạn. Bạn có muốn đổi sang phương thức Thanh toán khi nhận hàng (COD) không?',
+          [
+            { text: 'Đổi phương thức thanh toán', onPress: handleChangePayment },
+            { text: 'Thử lại sau', style: 'cancel' },
+          ],
+        );
+      } else {
+        setSubmitError(errMsg);
+      }
     }
   }, [
     checkout,
@@ -279,6 +327,74 @@ export default function CheckoutScreen() {
               actionLabel="Thêm phương thức"
               onAction={handleChangePayment}
             />
+          )}
+        </View>
+
+        {/* ============ MÃ GIẢM GIÁ / VOUCHER ============ */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderLeft}>
+            <View style={styles.iconBadge}>
+              <Ionicons name="pricetag" size={17} color={colors.primary} />
+            </View>
+            <Text style={styles.cardTitle}>Mã ưu đãi / Voucher</Text>
+          </View>
+
+          {cart.voucher ? (
+            <View style={styles.voucherAppliedRow}>
+              <View style={styles.voucherAppliedInfo}>
+                <View style={styles.voucherBadge}>
+                  <Text style={styles.voucherBadgeText}>{cart.voucher.code}</Text>
+                </View>
+                <Text style={styles.voucherDescText} numberOfLines={1}>
+                  {cart.voucher.title || `Giảm ${formatMoney(totals.discount)}`}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={handleRemoveVoucher}
+                style={({ pressed }) => [styles.removeVoucherBtn, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Hủy áp dụng mã ưu đãi"
+              >
+                <Ionicons name="close-circle-outline" size={16} color={colors.danger} />
+                <Text style={styles.removeVoucherText}>Hủy</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.voucherInputWrap}>
+              <View style={styles.voucherInputRow}>
+                <TextInput
+                  style={styles.voucherInput}
+                  placeholder="Nhập mã ưu đãi..."
+                  placeholderTextColor={colors.textMuted}
+                  value={voucherCodeInput}
+                  onChangeText={(text) => {
+                    setVoucherCodeInput(text.toUpperCase());
+                    if (voucherError) setVoucherError('');
+                  }}
+                  autoCapitalize="characters"
+                />
+                <Pressable
+                  onPress={handleApplyVoucher}
+                  disabled={applyingVoucher || !voucherCodeInput.trim()}
+                  style={({ pressed }) => [
+                    styles.applyVoucherBtn,
+                    (!voucherCodeInput.trim() || applyingVoucher) && styles.applyVoucherBtnDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Áp dụng mã ưu đãi"
+                >
+                  <Text style={styles.applyVoucherText}>
+                    {applyingVoucher ? '...' : 'Áp dụng'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {voucherError ? (
+                <Text style={styles.voucherErrorText}>{voucherError}</Text>
+              ) : null}
+            </View>
           )}
         </View>
 
@@ -631,5 +747,95 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+
+  /* ---------- Voucher Card ---------- */
+  voucherAppliedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primarySoft,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginTop: spacing.xs,
+  },
+  voucherAppliedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  voucherBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    marginRight: spacing.sm,
+  },
+  voucherBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  voucherDescText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.dark,
+    fontWeight: '600',
+  },
+  removeVoucherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: radius.sm,
+  },
+  removeVoucherText: {
+    marginLeft: 3,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.danger,
+  },
+  voucherInputWrap: {
+    marginTop: spacing.xs,
+  },
+  voucherInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  voucherInput: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: 13.5,
+    color: colors.dark,
+    fontWeight: '600',
+  },
+  applyVoucherBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 11,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyVoucherBtnDisabled: {
+    opacity: 0.5,
+  },
+  applyVoucherText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  voucherErrorText: {
+    fontSize: 12,
+    color: colors.danger,
+    marginTop: 6,
+    fontWeight: '500',
   },
 });

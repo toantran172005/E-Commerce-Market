@@ -124,7 +124,15 @@ export function CartProvider({
   const applyVoucher = useCallback(
     async (code: string) => {
       const subtotal = computeSubtotal(items);
-      const res = await VoucherService.validateVoucher(code, subtotal, selectedShipping.fee);
+      const selectedCats = items
+        .filter((i) => i.selected && i.product.category)
+        .map((i) => i.product.category!);
+      const res = await VoucherService.validateVoucher(
+        code,
+        subtotal,
+        selectedShipping.fee,
+        selectedCats,
+      );
       setVoucher(res.voucher);
       return res;
     },

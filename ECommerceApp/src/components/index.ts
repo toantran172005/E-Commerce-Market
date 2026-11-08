@@ -16,3 +16,5 @@ export * from './ConfirmSheet';
 export * from './ProductSpecsTable';
 export * from './ProductDescriptionView';
 export * from './ProductReviewsList';
+export * from './InvoiceModal';
+export * from './ReviewModal';

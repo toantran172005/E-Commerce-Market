@@ -26,12 +26,13 @@ export const VoucherService = {
 
   /**
    * Xác thực và tính toán giá trị chiết khấu của voucher:
-   * Kiểm tra tồn tại, kích hoạt, hạn dùng, lượt dùng và giá trị đơn hàng tối thiểu.
+   * Kiểm tra tồn tại, kích hoạt, hạn dùng, lượt dùng, giá trị đơn hàng tối thiểu và danh mục áp dụng.
    */
   async validateVoucher(
     code: string,
     subtotal: number,
     shippingFee = 0,
+    cartCategoryIds?: string[],
   ): Promise<{ voucher: Voucher; discount: number }> {
     const normalized = code.trim().toUpperCase();
     if (!normalized) {
@@ -56,7 +57,7 @@ export const VoucherService = {
     }
 
     if (!voucher) {
-      apiError('VOUCHER_NOT_FOUND', `Mã giảm giá "${normalized}" không tồn tại.`);
+      apiError('VOUCHER_NOT_FOUND', `Mã giảm giá "${normalized}" không hợp lệ hoặc không tồn tại.`);
     }
 
     // 1. Kiểm tra trạng thái kích hoạt
@@ -81,8 +82,23 @@ export const VoucherService = {
     if (subtotal < voucher.minOrderValue) {
       apiError(
         'VOUCHER_MIN_ORDER_NOT_MET',
-        `Đơn hàng chưa đạt giá trị tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ để áp dụng mã này.`,
+        `Mã giảm giá không hợp lệ hoặc không đủ điều kiện áp dụng (Giá trị đơn hàng tối thiểu là ${voucher.minOrderValue.toLocaleString('vi-VN')}đ).`,
       );
+    }
+
+    // 5. Kiểm tra danh mục áp dụng (nếu voucher có điều kiện ràng buộc danh mục)
+    if (voucher.applicableCategories && voucher.applicableCategories.length > 0) {
+      if (cartCategoryIds && cartCategoryIds.length > 0) {
+        const matched = cartCategoryIds.some((catId) =>
+          voucher!.applicableCategories!.includes(catId),
+        );
+        if (!matched) {
+          apiError(
+            'VOUCHER_CATEGORY_MISMATCH',
+            'Mã giảm giá không hợp lệ hoặc không đủ điều kiện áp dụng cho danh mục sản phẩm trong giỏ hàng.',
+          );
+        }
+      }
     }
 
     const discount = computeVoucherDiscount(voucher, subtotal, shippingFee);
