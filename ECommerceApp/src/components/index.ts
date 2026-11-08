@@ -13,3 +13,6 @@ export * from './FormField';
 export * from './ListItemRow';
 export * from './Toast';
 export * from './ConfirmSheet';
+export * from './ProductSpecsTable';
+export * from './ProductDescriptionView';
+export * from './ProductReviewsList';

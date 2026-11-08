@@ -466,7 +466,7 @@ const PRODUCT_INPUTS: ProductInput[] = [
     id: 'p-47', name: 'Minova Smart Plug', brandId: 'brand-minova', categoryId: 'cat-smart-home',
     price: 19, originalPrice: 29, rating: 4.3, reviewCount: 1120, stock: 120,
     description: 'Ổ cắm thông minh điều khiển từ xa, theo dõi điện năng, hẹn giờ linh hoạt.',
-    images: [pic('p-47-a')],
+    images: ['https://images.unsplash.com/photo-1558002038-1055907df827?w=700&auto=format&fit=crop&q=80'],
     specs: { 'Tải tối đa': '2500W', 'Theo dõi': 'Điện năng tiêu thụ', 'Hẹn giờ': 'Trong app' },
     tags: ['ổ cắm', 'smarthome'], badge: 'sale', soldCount: 4300,
   },
@@ -501,6 +501,13 @@ function toProduct(input: ProductInput, index: number): Product {
   const price = input.price;
   const originalPrice = input.originalPrice ?? input.price;
 
+  const details = Object.entries(input.specs || {}).map(([label, value]) => ({ label, value }));
+  if (brand?.name) {
+    details.unshift({ label: 'Thương hiệu', value: brand.name });
+  }
+  details.push({ label: 'Bảo hành', value: '12 tháng chính hãng' });
+  details.push({ label: 'Xuất xứ', value: 'Chính hãng phân phối' });
+
   return {
     id: input.id,
     name: input.name,
@@ -523,6 +530,19 @@ function toProduct(input: ProductInput, index: number): Product {
     createdAt: input.badge === 'new'
       ? `2026-11-${String(((index * 5) % 28) + 1).padStart(2, '0')}T09:00:00Z`
       : `2026-01-${String(((index * 7) % 28) + 1).padStart(2, '0')}T09:00:00Z`,
+    categoryPath: ['Trang chủ', 'Thiết bị công nghệ', brand?.name || 'Chính hãng'],
+    details,
+    highlights: [
+      `Sản phẩm ${input.name} chính hãng 100% nguyên seal`,
+      'Thiết kế hiện đại, bền bỉ, tối ưu trải nghiệm người dùng',
+      'Được kiểm định chất lượng nghiêm ngặt trước khi xuất xưởng',
+      'Hỗ trợ kỹ thuật 24/7 và giao hàng hoả tốc',
+    ],
+    longDescription: `${input.description}\n\nSản phẩm được hoàn thiện từ vật liệu cao cấp, mang lại độ bền vượt trội và trải nghiệm mượt mà. Đáp ứng trọn vẹn nhu cầu làm việc, giải trí và học tập hàng ngày với hiệu năng ổn định và tiết kiệm năng lượng.`,
+    usageGuide: 'Đọc kỹ sách hướng dẫn trước khi sử dụng. Tránh nơi ẩm ướt và nguồn nhiệt cao. Sạc đầy pin ở lần đầu sử dụng.',
+    warrantyPolicy: 'Bảo hành chính hãng 12 tháng tại các trung tâm uỷ quyền toàn quốc. Cam kết 1 đổi 1 trong 30 ngày nếu phát hiện lỗi do nhà sản xuất.',
+    origin: 'Kho tổng E-Commerce, Hà Nội',
+    promotionQuantity: 50,
   };
 }
 

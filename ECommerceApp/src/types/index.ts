@@ -15,6 +15,11 @@ export interface ProductVariant {
   inStock: number;
 }
 
+export interface ProductDetailItem {
+  label: string;
+  value: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -37,6 +42,16 @@ export interface Product {
   badge?: 'sale' | 'new' | 'hot';
   variants?: ProductVariant[];
   createdAt?: string;
+
+  /* --- Shopee-Style Extended Specification & Description (mobile.docx B) --- */
+  categoryPath?: string[];
+  details?: ProductDetailItem[];
+  highlights?: string[];
+  longDescription?: string;
+  usageGuide?: string;
+  warrantyPolicy?: string;
+  origin?: string;
+  promotionQuantity?: number;
 }
 
 export interface CartItem {
@@ -113,6 +128,9 @@ export interface Order {
   trackingCode?: string;
   timeline?: OrderTimelineStep[];
   note?: string;
+  paymentStatus?: 'paid' | 'pending' | 'failed';
+  discountAmount?: number;
+  recipientName?: string;
 }
 
 export interface Category {
@@ -137,6 +155,8 @@ export interface Review {
   content: string;
   createdAt: string;
   images?: string[];
+  userAvatar?: string;
+  verifiedPurchase?: boolean;
 }
 
 export type VoucherType = 'percent' | 'fixed' | 'freeShip';
@@ -157,6 +177,7 @@ export interface Voucher {
   usageLimit: number;
   usedCount: number;
   isActive: boolean;
+  applicableCategories?: string[];
 }
 
 export interface Address {
@@ -166,6 +187,10 @@ export interface Address {
   phone: string;
   address: string;
   isDefault: boolean;
+  province?: string;
+  district?: string;
+  ward?: string;
+  street?: string;
 }
 
 export type PaymentMethodType = 'card' | 'wallet' | 'cod';

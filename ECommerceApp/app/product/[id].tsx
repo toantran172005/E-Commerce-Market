@@ -25,6 +25,9 @@ import {
   ErrorView,
   EmptyState,
   Toast,
+  ProductSpecsTable,
+  ProductDescriptionView,
+  ProductReviewsList,
 } from '../../src/components';
 import { useCart } from '../../src/context/CartContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
@@ -47,6 +50,11 @@ export default function ProductDetailScreen() {
 
   const { data: product, loading, error, run } = useAsync(
     () => CatalogService.getProductById(productId),
+    [productId],
+  );
+
+  const { data: reviews = [] } = useAsync(
+    () => CatalogService.getProductReviews(productId),
     [productId],
   );
 
@@ -303,6 +311,18 @@ export default function ProductDetailScreen() {
               </View>
             </View>
           )}
+          {/* CHI TIẾT SẢN PHẨM (Shopee style - mobile.docx B) */}
+          <ProductSpecsTable product={product} />
+
+          {/* MÔ TẢ SẢN PHẨM (Shopee style - mobile.docx B) */}
+          <ProductDescriptionView product={product} />
+
+          {/* ĐÁNH GIÁ SẢN PHẨM (UC010) */}
+          <ProductReviewsList
+            reviews={reviews ?? []}
+            rating={product.rating ?? 4.8}
+            reviewCount={product.reviewCount ?? 0}
+          />
         </View>
       </ScrollView>
 
@@ -326,6 +346,7 @@ export default function ProductDetailScreen() {
       <Toast
         visible={toastVisible}
         message={toastMessage}
+        bottom={130}
         onHide={() => setToastVisible(false)}
       />
     </SafeAreaView>
