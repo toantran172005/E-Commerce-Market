@@ -1,734 +1,588 @@
+import fs from 'fs';
+import path from 'path';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  connectFirestoreEmulator,
+  collection,
+  getDocs,
+} from 'firebase/firestore';
+
+// 0. Load .env manually if running via node without --env-file
+const envPath = path.resolve('.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#')) {
+      const idx = trimmed.indexOf('=');
+      if (idx !== -1) {
+        const k = trimmed.substring(0, idx).trim();
+        const v = trimmed.substring(idx + 1).trim();
+        if (!process.env[k]) process.env[k] = v;
+      }
+    }
+  });
+}
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCPkVyg1V7erOSe2KWUvp9pDfO5EgVsJs4",
-  authDomain: "e-commerce-market-e2875.firebaseapp.com",
-  projectId: "e-commerce-market-e2875",
-  storageBucket: "e-commerce-market-e2875.firebasestorage.app",
-  messagingSenderId: "794360087185",
-  appId: "1:794360087185:web:ee816e20e5d8d6d1cb3530",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyCPkVyg1V7erOSe2KWUvp9pDfO5EgVsJs4",
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "e-commerce-market-e2875.firebaseapp.com",
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "e-commerce-market-e2875",
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "e-commerce-market-e2875.firebasestorage.app",
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "794360087185",
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:794360087185:web:ee816e20e5d8d6d1cb3530",
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 1. DANH MỤC (CATEGORIES) - 7 danh mục công nghệ phong phú để lướt mượt mà
+// Check if --emulator flag passed
+const isEmulator = process.argv.includes('--emulator');
+if (isEmulator) {
+  console.log('⚡ Kết nối tới Firebase Emulator tại localhost:8080...');
+  connectFirestoreEmulator(db, 'localhost', 8080);
+}
+
+// 1. DANH MỤC (CATEGORIES)
 const categories = [
-  {
-    id: 'audio',
-    name: 'Âm thanh',
-    icon: 'headphones',
-    productCount: 8,
-  },
-  {
-    id: 'phones',
-    name: 'Điện thoại',
-    icon: 'smartphone',
-    productCount: 7,
-  },
-  {
-    id: 'laptops',
-    name: 'Laptop & Máy tính',
-    icon: 'laptop',
-    productCount: 6,
-  },
-  {
-    id: 'accessories',
-    name: 'Phụ kiện',
-    icon: 'watch',
-    productCount: 6,
-  },
-  {
-    id: 'watches',
-    name: 'Đồng hồ thông minh',
-    icon: 'watch-outline',
-    productCount: 5,
-  },
-  {
-    id: 'tablets',
-    name: 'Máy tính bảng',
-    icon: 'tablet-portrait-outline',
-    productCount: 5,
-  },
-  {
-    id: 'gaming',
-    name: 'Gaming & Gear',
-    icon: 'game-controller-outline',
-    productCount: 6,
-  },
+  { id: 'audio', name: 'Âm thanh', icon: 'headset-outline' },
+  { id: 'phones', name: 'Điện thoại', icon: 'phone-portrait-outline' },
+  { id: 'laptops', name: 'Laptop & Máy tính', icon: 'laptop-outline' },
+  { id: 'accessories', name: 'Phụ kiện', icon: 'hardware-chip-outline' },
+  { id: 'watches', name: 'Đồng hồ thông minh', icon: 'watch-outline' },
+  { id: 'tablets', name: 'Máy tính bảng', icon: 'tablet-portrait-outline' },
+  { id: 'gaming', name: 'Gaming & Gear', icon: 'game-controller-outline' },
 ];
 
-// 2. THƯƠNG HIỆU (BRANDS) - Khớp 5 thương hiệu trong màn hình Filter
+// 2. THƯƠNG HIỆU (BRANDS)
 const brands = [
-  { id: 'aurasound', name: 'AuraSound' },
-  { id: 'pulse', name: 'Pulse' },
-  { id: 'stratus', name: 'Stratus' },
-  { id: 'tempo', name: 'Tempo' },
-  { id: 'vortex', name: 'Vortex' },
+  { id: 'aurasound', name: 'AuraSound', shortName: 'AS' },
+  { id: 'pulse', name: 'Pulse', shortName: 'PL' },
+  { id: 'stratus', name: 'Stratus', shortName: 'ST' },
+  { id: 'tempo', name: 'Tempo', shortName: 'TP' },
+  { id: 'vortex', name: 'Vortex', shortName: 'VX' },
 ];
 
-// 3. DANH SÁCH SẢN PHẨM (PRODUCTS) - Nội dung 100% tiếng Việt
+// 3. VẬN CHUYỂN (SHIPPING METHODS)
+const shippingMethods = [
+  {
+    id: 'ship_standard',
+    type: 'standard',
+    name: 'Giao hàng tiêu chuẩn',
+    description: 'Tiết kiệm chi phí, phù hợp đơn hàng thông thường',
+    estimatedDays: '3 - 5 ngày',
+    fee: 30000,
+    freeOver: 500000,
+  },
+  {
+    id: 'ship_express',
+    type: 'express',
+    name: 'Giao hàng nhanh',
+    description: 'Vận chuyển ưu tiên, đóng gói cẩn thận',
+    estimatedDays: '1 - 2 ngày',
+    fee: 45000,
+    freeOver: 1000000,
+  },
+  {
+    id: 'ship_sameday',
+    type: 'sameDay',
+    name: 'Hỏa tốc nội thành 2H',
+    description: 'Nhận hàng ngay trong 2 giờ tại nội thành',
+    estimatedDays: '2 giờ',
+    fee: 65000,
+    freeOver: 2000000,
+  },
+];
+
+// 4. MÃ KHUYẾN MÃI (VOUCHERS)
+const vouchers = [
+  {
+    id: 'v_discount10',
+    code: 'DISCOUNT10',
+    title: 'Giảm 10% đơn từ 200.000đ',
+    type: 'percent',
+    value: 10,
+    minOrderValue: 200000,
+    maxDiscount: 100000,
+    startsAt: '2026-01-01T00:00:00Z',
+    expiresAt: '2027-12-31T23:59:59Z',
+    usageLimit: 1000,
+    usedCount: 142,
+    isActive: true,
+  },
+  {
+    id: 'v_freeship',
+    code: 'FREESHIP',
+    title: 'Miễn phí vận chuyển toàn quốc',
+    type: 'freeShip',
+    value: 0,
+    minOrderValue: 300000,
+    startsAt: '2026-01-01T00:00:00Z',
+    expiresAt: '2027-12-31T23:59:59Z',
+    usageLimit: 500,
+    usedCount: 88,
+    isActive: true,
+  },
+  {
+    id: 'v_welcome50',
+    code: 'WELCOME50',
+    title: 'Giảm 50.000đ cho khách hàng mới',
+    type: 'fixed',
+    value: 50000,
+    minOrderValue: 250000,
+    startsAt: '2026-01-01T00:00:00Z',
+    expiresAt: '2027-12-31T23:59:59Z',
+    usageLimit: 2000,
+    usedCount: 310,
+    isActive: true,
+  },
+  {
+    id: 'v_vip100',
+    code: 'VIP100',
+    title: 'Giảm 100.000đ cho đơn hàng giá trị cao',
+    type: 'fixed',
+    value: 100000,
+    minOrderValue: 1500000,
+    startsAt: '2026-01-01T00:00:00Z',
+    expiresAt: '2027-12-31T23:59:59Z',
+    usageLimit: 200,
+    usedCount: 19,
+    isActive: true,
+  },
+];
+
+// 5. SẢN PHẨM (PRODUCTS)
 const products = [
-  // --- ĐỒNG HỒ THÔNG MINH ---
-  {
-    id: 'prod_tempo_watch_pro',
-    name: 'Đồng hồ thông minh Tempo Watch Ultra Titan',
-    brand: 'Tempo',
-    category: 'Đồng hồ thông minh',
-    categoryId: 'watches',
-    price: 349,
-    originalPrice: 399,
-    discountPercent: 12,
-    rating: 4.9,
-    reviewCount: 420,
-    stock: 20,
-    inStock: true,
-    description: 'Vỏ titan chuẩn quân đội, màn hình sapphire siêu sáng 2000 nits, định vị GPS kép chuyên sâu cho chạy bộ và thám hiểm.',
-    colors: [{ name: 'Titan Tự Nhiên', hex: '#A8A29E' }, { name: 'Đen Titan', hex: '#1C1917' }],
-    variants: ['Bản Dây Cao Su', 'Bản Dây Dệt Trail'],
-    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: false,
-  },
-  {
-    id: 'prod_stratus_band',
-    name: 'Vòng đeo tay theo dõi sức khoẻ Stratus Fit 3',
-    brand: 'Stratus',
-    category: 'Đồng hồ thông minh',
-    categoryId: 'watches',
-    price: 59,
-    originalPrice: 79,
-    discountPercent: 25,
-    rating: 4.7,
-    reviewCount: 890,
-    stock: 65,
-    inStock: true,
-    description: 'Pin 14 ngày, đo SpO2 liên tục, theo dõi giấc ngủ chuẩn khoa học và kháng nước 5ATM.',
-    colors: [{ name: 'Đen Mờ', hex: '#18181B' }, { name: 'Hồng Phấn', hex: '#F472B6' }],
-    variants: ['Tiêu Chuẩn'],
-    imageUrl: 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: true,
-  },
-
-  // --- MÁY TÍNH BẢNG ---
-  {
-    id: 'prod_pulse_pad_pro',
-    name: 'Máy tính bảng Pulse Tab Pro 12.4 inch M2',
-    brand: 'Pulse',
-    category: 'Máy tính bảng',
-    categoryId: 'tablets',
-    price: 699,
-    originalPrice: 799,
-    discountPercent: 12,
-    rating: 4.8,
-    reviewCount: 310,
-    stock: 18,
-    inStock: true,
-    description: 'Màn hình OLED 120Hz rực rỡ, hỗ trợ bút cảm ứng độ trễ 2ms, 4 loa vòm chuẩn Dolby Atmos cho giải trí và vẽ chuyên nghiệp.',
-    colors: [{ name: 'Xám Không Gian', hex: '#374151' }, { name: 'Bạc Ánh Kim', hex: '#E5E7EB' }],
-    variants: ['128GB Wifi', '256GB 5G'],
-    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: false,
-  },
-
-  // --- GAMING & GEAR ---
-  {
-    id: 'prod_vortex_keyboard_rgb',
-    name: 'Bàn phím cơ không dây Gaming Vortex Strike RGB',
-    brand: 'Vortex',
-    category: 'Gaming & Gear',
-    categoryId: 'gaming',
-    price: 119,
-    originalPrice: 149,
-    discountPercent: 20,
-    rating: 4.8,
-    reviewCount: 540,
-    stock: 35,
-    inStock: true,
-    description: 'Switch quang học siêu nhạy, hot-swap 5-pin, kết nối 3 chế độ (Bluetooth / 2.4GHz / Type-C) và LED RGB từng phím.',
-    colors: [{ name: 'Trắng RGB', hex: '#FFFFFF' }, { name: 'Đen Stealth', hex: '#111827' }],
-    variants: ['Red Switch Êm Ái', 'Blue Switch Clicky'],
-    imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: true,
-  },
-  {
-    id: 'prod_vortex_mouse_pro',
-    name: 'Chuột gaming siêu nhẹ Vortex Air Wireless 49g',
-    brand: 'Vortex',
-    category: 'Gaming & Gear',
-    categoryId: 'gaming',
-    price: 79,
-    originalPrice: 99,
-    discountPercent: 20,
-    rating: 4.9,
-    reviewCount: 390,
-    stock: 40,
-    inStock: true,
-    description: 'Trọng lượng siêu nhẹ chỉ 49g, cảm biến 26.000 DPI cao cấp, pin 80 giờ liên tục cho trải nghiệm FPS đỉnh chóp.',
-    colors: [{ name: 'Trắng Tuyết', hex: '#F9FAFB' }, { name: 'Đen Nhám', hex: '#000000' }],
-    variants: ['Tiêu Chuẩn'],
-    imageUrl: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
-  },
-
-  // --- ÂM THANH ---
   {
     id: 'prod_aurabeats_pro',
-    name: 'Tai nghe chống ồn không dây AuraBeats Pro',
-    brand: 'AuraSound',
+    name: 'Tai nghe Bluetooth AuraSound Studio Pro Active Noise Cancelling',
+    price: 3200000,
+    originalPrice: 4000000,
+    description: 'Âm thanh Hi-Res Audio chuẩn phòng thu, chống ồn chủ động ANC thế hệ mới, pin bền bỉ 40 giờ liên tục, đệm tai mút hoạt tính êm ái.',
+    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700&auto=format&fit=crop&q=80',
     category: 'Âm thanh',
     categoryId: 'audio',
-    price: 249,
-    originalPrice: 299,
-    discountPercent: 17,
+    brandId: 'aurasound',
+    brandName: 'AuraSound',
     rating: 4.8,
-    reviewCount: 1284,
-    stock: 24,
-    inStock: true,
-    description: 'Tai nghe trùm đầu chống ồn chủ động đỉnh cao với thời lượng pin 40 giờ. Hỗ trợ âm thanh vòm không gian đa chiều, đệm tai bọc da êm ái thoáng khí suốt ngày dài.',
-    colors: [
-      { name: 'Đen Carbon', hex: '#1C1C1E' },
-      { name: 'Xám Bạc', hex: '#D1D5DB' },
-      { name: 'Nâu Đồng', hex: '#9A5B42' },
-    ],
-    variants: ['Bản Tiêu Chuẩn', 'Kèm Hộp Đựng Cao Cấp'],
-    imageUrls: [
+    reviewCount: 356,
+    soldCount: 840,
+    stock: 50,
+    badge: 'hot',
+    tags: ['tainghe', 'bluetooth', 'chongon', 'anc', 'aurasound'],
+    images: [
       'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700&auto=format&fit=crop&q=80',
       'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=700&auto=format&fit=crop&q=80',
     ],
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: true,
+    variants: [
+      { id: 'black', name: 'Đen Huyền Bí', type: 'color', inStock: 30 },
+      { id: 'silver', name: 'Bạc Ánh Kim', type: 'color', inStock: 20 },
+    ],
+    createdAt: '2026-01-10T08:00:00Z',
+  },
+  {
+    id: 'prod_tempo_watch_pro',
+    name: 'Đồng hồ thông minh Tempo Watch Ultra Titan thể thao chuyên sâu',
+    price: 8500000,
+    originalPrice: 9900000,
+    description: 'Vỏ titan chuẩn quân đội, màn hình sapphire siêu sáng 2000 nits, định vị GPS tần số kép chuyên sâu cho chạy bộ, leo núi và bơi lội.',
+    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
+    category: 'Đồng hồ thông minh',
+    categoryId: 'watches',
+    brandId: 'tempo',
+    brandName: 'Tempo',
+    rating: 4.9,
+    reviewCount: 420,
+    soldCount: 650,
+    stock: 25,
+    badge: 'sale',
+    tags: ['dongho', 'smartwatch', 'tempo', 'thethao', 'gps'],
+    images: [
+      'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
+    ],
+    variants: [
+      { id: 'titanium_gray', name: 'Titan Tự Nhiên', type: 'color', inStock: 15 },
+      { id: 'titanium_black', name: 'Đen Titan', type: 'color', inStock: 10 },
+    ],
+    createdAt: '2026-01-15T09:00:00Z',
+  },
+  {
+    id: 'prod_pulse_11_ultra',
+    name: 'Điện thoại flagship Pulse 11 Ultra 5G camera tiềm vọng 100x',
+    price: 21990000,
+    originalPrice: 24990000,
+    description: 'Vi xử lý 3nm đỉnh cao, màn hình Dynamic AMOLED 2K 120Hz mượt mà, cụm 4 camera Zeiss 200MP chống rung OIS kép, sạc nhanh 120W.',
+    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80',
+    category: 'Điện thoại',
+    categoryId: 'phones',
+    brandId: 'pulse',
+    brandName: 'Pulse',
+    rating: 4.9,
+    reviewCount: 512,
+    soldCount: 920,
+    stock: 40,
+    badge: 'hot',
+    tags: ['dienthoai', 'smartphone', '5g', 'pulse', 'flagship'],
+    images: [
+      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80',
+    ],
+    variants: [
+      { id: 'blue_titan', name: 'Xanh Titan 256GB', type: 'storage', inStock: 25 },
+      { id: 'black_shadow', name: 'Đen Huyền Bí 512GB', type: 'storage', inStock: 15 },
+    ],
+    createdAt: '2026-01-20T10:00:00Z',
+  },
+  {
+    id: 'prod_stratus_pro_14',
+    name: 'Laptop cao cấp Stratus Pro 14 Màn hình OLED 3K 120Hz',
+    price: 28500000,
+    originalPrice: 32000000,
+    description: 'Trọng lượng chỉ 1.2kg siêu nhẹ, vỏ hợp kim magie nguyên khối, thời lượng pin 18 giờ, chip AI NPU thế hệ mới tối ưu đồ họa lập trình.',
+    imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=700&auto=format&fit=crop&q=80',
+    category: 'Laptop & Máy tính',
+    categoryId: 'laptops',
+    brandId: 'stratus',
+    brandName: 'Stratus',
+    rating: 4.7,
+    reviewCount: 198,
+    soldCount: 340,
+    stock: 18,
+    badge: 'new',
+    tags: ['laptop', 'maytinh', 'stratus', 'oled', 'ultrabook'],
+    images: [
+      'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=700&auto=format&fit=crop&q=80',
+    ],
+    variants: [
+      { id: 'ram16_512', name: '16GB RAM / 512GB SSD', type: 'storage', inStock: 10 },
+      { id: 'ram32_1tb', name: '32GB RAM / 1TB SSD', type: 'storage', inStock: 8 },
+    ],
+    createdAt: '2026-02-01T08:00:00Z',
   },
   {
     id: 'prod_vortex_gaming',
-    name: 'Tai nghe gaming âm thanh vòm Vortex 7.1',
-    brand: 'Vortex',
-    category: 'Âm thanh',
-    categoryId: 'audio',
-    price: 149,
-    originalPrice: 199,
-    discountPercent: 25,
-    rating: 4.6,
-    reviewCount: 320,
-    stock: 30,
-    inStock: true,
-    description: 'Tai nghe thi đấu chuyên nghiệp tích hợp giả lập âm thanh vòm 7.1, mic đàm thoại lọc tạp âm chống ồn và dải đèn LED RGB nổi bật.',
-    colors: [
-      { name: 'Đen Huyền Bí', hex: '#000000' },
-      { name: 'Trắng Neon', hex: '#FFFFFF' },
-    ],
-    variants: ['Cổng Cắm USB', 'Không Dây 2.4GHz'],
+    name: 'Tai nghe gaming âm thanh vòm Vortex Surround Sound 7.1',
+    price: 1850000,
+    originalPrice: 2300000,
+    description: 'Định vị bước chân chuẩn xác, củ loa Neodymium 50mm, micro lọc tiếng ồn chuẩn eSports, đèn LED RGB Chroma 16.8 triệu màu.',
     imageUrl: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: false,
-  },
-  {
-    id: 'prod_aurasound_earbuds',
-    name: 'Tai nghe nhét tai không dây AuraSound ANC',
-    brand: 'AuraSound',
-    category: 'Âm thanh',
-    categoryId: 'audio',
-    price: 129,
-    originalPrice: 159,
-    discountPercent: 19,
-    rating: 4.7,
-    reviewCount: 560,
-    stock: 45,
-    inStock: true,
-    description: 'Thiết kế nhét tai siêu nhỏ gọn bám chắc hốc tai, chuẩn kháng nước IPX5 và hộp sạc hỗ trợ sạc nhanh không dây chuẩn Qi.',
-    colors: [
-      { name: 'Trắng Ngọc Trai', hex: '#F9FAFB' },
-      { name: 'Đen Nhám', hex: '#111827' },
+    category: 'Gaming & Gear',
+    categoryId: 'gaming',
+    brandId: 'vortex',
+    brandName: 'Vortex',
+    rating: 4.6,
+    reviewCount: 230,
+    soldCount: 710,
+    stock: 60,
+    badge: 'sale',
+    tags: ['gaming', 'tainghe', 'vortex', 'rgb', 'esports'],
+    images: [
+      'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=700&auto=format&fit=crop&q=80',
     ],
-    variants: ['Bản Tiêu Chuẩn'],
-    imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: true,
-  },
-  {
-    id: 'prod_tempo_soundbar',
-    name: 'Loa thanh rạp hát gia đình Tempo Soundbar Dolby Atmos',
-    brand: 'Tempo',
-    category: 'Âm thanh',
-    categoryId: 'audio',
-    price: 399,
-    originalPrice: 499,
-    discountPercent: 20,
-    rating: 4.9,
-    reviewCount: 140,
-    stock: 12,
-    inStock: true,
-    description: 'Tái tạo không gian âm thanh rạp chiếu phim 3D chân thực với loa siêu trầm sub-woofer không dây uy lực và kết nối HDMI eARC.',
-    colors: [{ name: 'Đen Tuyền', hex: '#111827' }],
-    variants: ['Bản Tiêu Chuẩn'],
-    imageUrl: 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
-  },
-
-  // --- ĐIỆN THOẠI ---
-  {
-    id: 'prod_pulse_11_ultra',
-    name: 'Điện thoại thông minh Pulse 11 Ultra 5G',
-    brand: 'Pulse',
-    category: 'Điện thoại',
-    categoryId: 'phones',
-    price: 899,
-    originalPrice: 1099,
-    discountPercent: 18,
-    rating: 4.9,
-    reviewCount: 850,
-    stock: 15,
-    inStock: true,
-    description: 'Siêu phẩm flagship trang bị màn hình AMOLED 120Hz mượt mà, camera tiềm vọng zoom xa 100x và vi xử lý hàng đầu xử lý tác vụ cực nhanh.',
-    colors: [
-      { name: 'Xanh Titan', hex: '#3B82F6' },
-      { name: 'Đen Huyền Bí', hex: '#000000' },
-      { name: 'Trắng Gốm', hex: '#FFFFFF' },
+    variants: [
+      { id: 'black_rgb', name: 'Đen RGB', type: 'color', inStock: 40 },
+      { id: 'white_rgb', name: 'Trắng Tuyết RGB', type: 'color', inStock: 20 },
     ],
-    variants: ['256GB / 12GB RAM', '512GB / 16GB RAM', '1TB / 16GB RAM'],
-    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: true,
+    createdAt: '2026-02-05T09:00:00Z',
   },
   {
-    id: 'prod_pulse_note_12',
-    name: 'Điện thoại màn hình lớn Pulse Note 12 Pro',
-    brand: 'Pulse',
-    category: 'Điện thoại',
-    categoryId: 'phones',
-    price: 699,
-    originalPrice: 799,
-    discountPercent: 12,
-    rating: 4.7,
-    reviewCount: 290,
-    stock: 22,
-    inStock: true,
-    description: 'Tích hợp sẵn bút cảm ứng kỹ thuật số, màn hình cong tràn viền 6.8 inch và viên pin dung lượng lớn 6000mAh hỗ trợ sạc siêu tốc.',
-    colors: [
-      { name: 'Xanh Rừng Sâu', hex: '#065F46' },
-      { name: 'Đen Thạch Anh', hex: '#18181B' },
-    ],
-    variants: ['128GB / 8GB RAM', '256GB / 8GB RAM'],
-    imageUrl: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: false,
-  },
-  {
-    id: 'prod_vortex_phone',
-    name: 'Điện thoại chuyên game Vortex Phone Z5',
-    brand: 'Vortex',
-    category: 'Điện thoại',
-    categoryId: 'phones',
-    price: 799,
-    originalPrice: 949,
-    discountPercent: 16,
-    rating: 4.8,
-    reviewCount: 175,
-    stock: 18,
-    inStock: true,
-    description: 'Nút trigger cảm ứng lực ở hai cạnh viền, hệ thống tản nhiệt buồng hơi kép và màn hình siêu mượt với tần số quét 165Hz.',
-    colors: [{ name: 'Đen Cam Thể Thao', hex: '#18181B' }],
-    variants: ['256GB / 16GB RAM', '512GB / 24GB RAM'],
-    imageUrl: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
-  },
-
-  // --- LAPTOP & MÁY TÍNH ---
-  {
-    id: 'prod_stratusbook_14',
-    name: 'Laptop siêu mỏng nhẹ StratusBook Pro 14 M3',
-    brand: 'Stratus',
-    category: 'Laptop & Máy tính',
-    categoryId: 'laptops',
-    price: 1299,
-    originalPrice: 1499,
-    discountPercent: 13,
-    rating: 4.9,
-    reviewCount: 420,
-    stock: 10,
-    inStock: true,
-    description: 'Vỏ nhôm nguyên khối hàng không sang trọng, màn hình Liquid Retina 120Hz siêu nét và thời lượng pin cả ngày dài lên tới 22 tiếng.',
-    colors: [
-      { name: 'Xám Không Gian', hex: '#4B5563' },
-      { name: 'Bạc Ánh Kim', hex: '#E5E7EB' },
-    ],
-    variants: ['16GB RAM / 512GB SSD', '32GB RAM / 1TB SSD'],
-    imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: false,
-  },
-  {
-    id: 'prod_stratus_gaming_16',
-    name: 'Laptop gaming hiệu năng cao Stratus Titan 16',
-    brand: 'Stratus',
-    category: 'Laptop & Máy tính',
-    categoryId: 'laptops',
-    price: 1699,
-    originalPrice: 1899,
-    discountPercent: 10,
-    rating: 4.8,
-    reviewCount: 150,
-    stock: 8,
-    inStock: true,
-    description: 'Sức mạnh đồ họa đỉnh cao với card RTX 4080, vi xử lý Core i9, bàn phím cơ quang học RGB và màn hình chuẩn màu eSports 240Hz.',
-    colors: [{ name: 'Đen Nhám Titan', hex: '#09090B' }],
-    variants: ['32GB RAM / 1TB SSD', '64GB RAM / 2TB SSD'],
-    imageUrl: 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
-  },
-
-  // --- PHỤ KIỆN & ĐỒNG HỒ ---
-  {
-    id: 'prod_tempo_watch',
-    name: 'Đồng hồ thông minh thể thao Tempo Watch Active 2',
-    brand: 'Tempo',
-    category: 'Phụ kiện & Đồng hồ',
-    categoryId: 'accessories',
-    price: 199,
-    originalPrice: 249,
-    discountPercent: 20,
-    rating: 4.7,
-    reviewCount: 310,
-    stock: 30,
-    inStock: true,
-    description: 'Màn hình AMOLED sắc nét, đo điện tâm đồ ECG, định vị GPS kép độc lập, chuẩn chống nước 5ATM và pin dùng 14 ngày.',
-    colors: [
-      { name: 'Đen Midnight', hex: '#18181B' },
-      { name: 'Hồng Vàng', hex: '#FB7185' },
-      { name: 'Bạc Trắng', hex: '#E2E8F0' },
-    ],
-    variants: ['Mặt 40mm', 'Mặt 44mm'],
-    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
-    isFeatured: true,
-    isFlashSale: true,
-  },
-  {
-    id: 'prod_vortex_keyboard',
-    name: 'Bàn phím cơ tuỳ biến Vortex K8 Hot-swap',
-    brand: 'Vortex',
-    category: 'Phụ kiện & Đồng hồ',
-    categoryId: 'accessories',
-    price: 119,
-    originalPrice: 149,
-    discountPercent: 20,
-    rating: 4.8,
-    reviewCount: 430,
-    stock: 35,
-    inStock: true,
-    description: 'Cấu trúc đệm Gasket-mount gõ cực êm, switch đã bôi trơn sẵn mượt mà, lót foam tiêu âm cao cấp và kết nối đa thiết bị.',
-    colors: [
-      { name: 'Xám Cổ Điển', hex: '#6B7280' },
-      { name: 'Tím Cyberpunk', hex: '#8B5CF6' },
-    ],
-    variants: ['Switch Đỏ (Êm mượt)', 'Switch Nâu (Khấc nhẹ)'],
-    imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
-  },
-  {
-    id: 'prod_tempo_ring',
-    name: 'Nhẫn sức khoẻ thông minh Tempo Health Ring Gen 3',
-    brand: 'Tempo',
-    category: 'Phụ kiện & Đồng hồ',
-    categoryId: 'accessories',
-    price: 299,
-    originalPrice: 349,
-    discountPercent: 14,
+    id: 'prod_stratus_band',
+    name: 'Vòng đeo tay thông minh theo dõi sức khoẻ Stratus Fit 3',
+    price: 990000,
+    originalPrice: 1290000,
+    description: 'Màn hình AMOLED cong, đo nhịp tim liên tục 24/7, SpO2, theo dõi giấc ngủ chuẩn y khoa, chống nước 5ATM đi bơi thoải mái.',
+    imageUrl: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=700&auto=format&fit=crop&q=80',
+    category: 'Đồng hồ thông minh',
+    categoryId: 'watches',
+    brandId: 'stratus',
+    brandName: 'Stratus',
     rating: 4.5,
-    reviewCount: 95,
-    stock: 12,
-    inStock: true,
-    description: 'Chất liệu Titanium siêu nhẹ chỉ 3g, cảm biến đo nhiệt độ da, chỉ số hồi phục thể lực và theo dõi các giai đoạn giấc ngủ chuyên sâu.',
-    colors: [
-      { name: 'Đen Tàng Hình', hex: '#18181B' },
-      { name: 'Bạc Tráng Gương', hex: '#E5E7EB' },
-      { name: 'Vàng Hoàng Gia', hex: '#FBBF24' },
+    reviewCount: 310,
+    soldCount: 1200,
+    stock: 100,
+    badge: 'hot',
+    tags: ['vongtay', 'fitness', 'stratus', 'thethao', 'spo2'],
+    images: [
+      'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=700&auto=format&fit=crop&q=80',
     ],
-    variants: ['Size 8', 'Size 9', 'Size 10', 'Size 11'],
-    imageUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=700&auto=format&fit=crop&q=80',
-    isFeatured: false,
-    isFlashSale: false,
+    variants: [
+      { id: 'black', name: 'Đen Thể Thao', type: 'color', inStock: 60 },
+      { id: 'pink', name: 'Hồng Pastel', type: 'color', inStock: 40 },
+    ],
+    createdAt: '2026-02-10T10:00:00Z',
+  },
+  {
+    id: 'prod_aurasound_mini',
+    name: 'Loa di động không dây chống nước AuraSound BassGo 2',
+    price: 1450000,
+    originalPrice: 1790000,
+    description: 'Công suất 30W uy lực, màng loa bass thụ động kép, chuẩn kháng nước kháng bụi IP67, kết nối đa loa PartySync khuấy động không gian.',
+    imageUrl: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=700&auto=format&fit=crop&q=80',
+    category: 'Âm thanh',
+    categoryId: 'audio',
+    brandId: 'aurasound',
+    brandName: 'AuraSound',
+    rating: 4.8,
+    reviewCount: 180,
+    soldCount: 560,
+    stock: 45,
+    badge: 'sale',
+    tags: ['loa', 'bluetooth', 'aurasound', 'bassgo', 'chongnuoc'],
+    images: [
+      'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=700&auto=format&fit=crop&q=80',
+    ],
+    variants: [
+      { id: 'blue', name: 'Xanh Biển Sâu', type: 'color', inStock: 25 },
+      { id: 'camo', name: 'Rằn Ri Quân Đội', type: 'color', inStock: 20 },
+    ],
+    createdAt: '2026-02-15T11:00:00Z',
+  },
+  {
+    id: 'prod_pulse_pad_12',
+    name: 'Máy tính bảng đồ họa Pulse Tab Pro 12 kèm bút cảm ứng',
+    price: 15990000,
+    originalPrice: 17990000,
+    description: 'Màn hình 120Hz chống chói viền siêu mỏng, nhận diện lực 4096 mức độ, hỗ trợ chế độ PC đa nhiệm, pin khủng 10.000 mAh.',
+    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop&q=80',
+    category: 'Máy tính bảng',
+    categoryId: 'tablets',
+    brandId: 'pulse',
+    brandName: 'Pulse',
+    rating: 4.8,
+    reviewCount: 145,
+    soldCount: 390,
+    stock: 22,
+    badge: 'new',
+    tags: ['tablet', 'maytinhbang', 'pulse', 'butcamung', 'pro'],
+    images: [
+      'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop&q=80',
+    ],
+    variants: [
+      { id: 'wifi_128', name: 'Wi-Fi 128GB', type: 'storage', inStock: 12 },
+      { id: '5g_256', name: '5G + Wi-Fi 256GB', type: 'storage', inStock: 10 },
+    ],
+    createdAt: '2026-02-20T14:00:00Z',
   },
 ];
 
-// 4. DANH SÁCH NGƯỜI DÙNG TEST (USERS) - Tên field tiếng Anh, thông tin tiếng Việt
+// 6. NGƯỜI DÙNG MẪU & SUBCOLLECTIONS (USERS)
 const users = [
   {
-    id: 'user_alex_carter',
+    uid: 'user_alex_carter',
+    email: 'alex.carter@example.com',
     fullName: 'Trần Minh Alex',
-    email: 'alex.carter@novatech.io',
-    phoneNumber: '+84 901 284 920',
-    membershipBadge: 'THÀNH VIÊN PRO',
-    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-    orderCount: 1,
-    wishlistCount: 1,
-    shippingAddresses: [
-      {
-        id: 'addr_home',
-        type: 'Nhà riêng',
-        isDefault: true,
-        recipientName: 'Trần Minh Alex',
-        phoneNumber: '+84 901 284 920',
-        fullAddress: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
-      },
-      {
-        id: 'addr_work',
-        type: 'Văn phòng',
-        isDefault: false,
-        recipientName: 'Trần Minh Alex',
-        phoneNumber: '+84 901 284 920',
-        fullAddress: 'Tòa nhà Bitexco, Tầng 12, Số 2 Hải Triều, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-      },
-    ],
-    notifications: {
-      orderUpdates: true,
-      promotionsOffers: true,
-      newArrivals: false,
-      reviewReminders: true,
-    },
-    favouriteProductIds: ['prod_aurabeats_pro'],
+    displayName: 'Alex Carter',
+    phoneNumber: '0901284920',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    isGuest: false,
+    createdAt: '2026-01-01T00:00:00Z',
   },
   {
-    id: 'user_toan_tran',
-    fullName: 'Trần Văn Toàn',
-    email: 'toan.tran172005@gmail.com',
-    phoneNumber: '+84 901 234 567',
-    membershipBadge: 'THÀNH VIÊN PRO',
-    avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80',
-    orderCount: 2,
-    wishlistCount: 3,
-    shippingAddresses: [
-      {
-        id: 'addr_toan_home',
-        type: 'Nhà riêng',
-        isDefault: true,
-        recipientName: 'Trần Văn Toàn',
-        phoneNumber: '+84 901 234 567',
-        fullAddress: 'Số 12 Nguyễn Văn Bảo, Phường 4, Quận Gò Vấp, TP. Hồ Chí Minh',
-      },
-    ],
-    notifications: {
-      orderUpdates: true,
-      promotionsOffers: true,
-      newArrivals: true,
-      reviewReminders: true,
-    },
-    favouriteProductIds: ['prod_pulse_11_ultra', 'prod_stratusbook_14'],
-  },
-  {
-    id: 'user_phuong_dev',
-    fullName: 'Nguyễn Thu Phương',
-    email: 'phuong.nguyen@novatech.io',
-    phoneNumber: '+84 912 345 678',
-    membershipBadge: 'THÀNH VIÊN VÀNG',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-    orderCount: 0,
-    wishlistCount: 2,
-    shippingAddresses: [
-      {
-        id: 'addr_phuong_home',
-        type: 'Nhà riêng',
-        isDefault: true,
-        recipientName: 'Nguyễn Thu Phương',
-        phoneNumber: '+84 912 345 678',
-        fullAddress: 'Số 88 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-      },
-    ],
-    notifications: {
-      orderUpdates: true,
-      promotionsOffers: false,
-      newArrivals: true,
-      reviewReminders: false,
-    },
-    favouriteProductIds: ['prod_tempo_watch'],
+    uid: 'user_thanh_toan',
+    email: 'thanhtoan@example.com',
+    fullName: 'Trần Thanh Toàn',
+    displayName: 'Thanh Toan',
+    phoneNumber: '0912345678',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
+    isGuest: false,
+    createdAt: '2026-01-02T00:00:00Z',
   },
 ];
 
-// 5. ĐƠN HÀNG (ORDERS) - Khớp 100% đơn #ORD-21530, hỗ trợ quy trình Hủy đơn hàng
+// 7. ĐƠN HÀNG MẪU (ORDERS)
 const orders = [
   {
     id: 'ORD-21530',
     userId: 'user_alex_carter',
     customerName: 'Trần Minh Alex',
-    phoneNumber: '+84 901 284 920',
-    shippingAddress: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
-    date: '27/10/2026',
-    itemCount: 1,
-    subtotal: 249.00,
-    shippingFee: 5.00,
-    discountAmount: 0.00,
-    totalAmount: 249.00,
-    status: 'Đang xử lý', // Tiến trình: Đã đặt hàng -> Đang đóng gói -> Đang giao hàng -> Đã giao thành công / Đã hủy
-    currentStep: 2, // 1: Đã đặt, 2: Đóng gói, 3: Vận chuyển, 4: Đã giao
-    canCancel: true, // Đang xử lý nên được phép Hủy đơn
-    cancelReason: '',
-    cancelledAt: '',
-    paymentMethod: 'Thẻ Visa ···· 4290',
+    phoneNumber: '0901284920',
+    shippingAddress: 'Tòa nhà Landmark 81, 720A Điện Biên Phủ, Phường 22, Quận Bình Thạnh, TP. Hồ Chí Minh',
     items: [
       {
         productId: 'prod_aurabeats_pro',
-        brand: 'AuraSound',
-        name: 'Tai nghe chống ồn không dây AuraBeats Pro',
-        variant: 'Đen Carbon · Bản Tiêu Chuẩn',
-        price: 249.00,
-        originalPrice: 299.00,
+        name: 'Tai nghe Bluetooth AuraSound Studio Pro Active Noise Cancelling',
+        price: 3200000,
         quantity: 1,
         imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700&auto=format&fit=crop&q=80',
+        variantName: 'Đen Huyền Bí',
       },
     ],
-  },
-  {
-    id: 'ORD-19842',
-    userId: 'user_toan_tran',
-    customerName: 'Trần Văn Toàn',
-    phoneNumber: '+84 901 234 567',
-    shippingAddress: 'Số 12 Nguyễn Văn Bảo, Phường 4, Quận Gò Vấp, TP. Hồ Chí Minh',
-    date: '20/10/2026',
-    itemCount: 2,
-    subtotal: 1098.00,
-    shippingFee: 0.00,
-    discountAmount: 50.00,
-    totalAmount: 1048.00,
-    status: 'Đã giao thành công',
-    currentStep: 4,
-    canCancel: false, // Đã giao rồi thì không được hủy
-    cancelReason: '',
-    cancelledAt: '',
-    paymentMethod: 'Thẻ Visa ···· 8834',
-    items: [
+    subtotal: 3200000,
+    shippingFee: 30000,
+    tax: 256000,
+    discount: 320000,
+    voucherCode: 'DISCOUNT10',
+    totalAmount: 3166000,
+    status: 'pending',
+    currentStep: 1,
+    canCancel: true,
+    paymentMethodName: 'Thẻ Visa •••• 4242',
+    shippingMethodName: 'Giao hàng tiêu chuẩn',
+    timeline: [
       {
-        productId: 'prod_pulse_11_ultra',
-        brand: 'Pulse',
-        name: 'Điện thoại thông minh Pulse 11 Ultra 5G',
-        variant: 'Xanh Titan · 256GB',
-        price: 899.00,
-        originalPrice: 1099.00,
-        quantity: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=700&auto=format&fit=crop&q=80',
+        key: 'created',
+        label: 'Đặt hàng thành công',
+        icon: 'checkmark-circle',
+        date: '2026-03-01T10:30:00Z',
+        completed: true,
       },
       {
-        productId: 'prod_tempo_watch',
-        brand: 'Tempo',
-        name: 'Đồng hồ thông minh thể thao Tempo Watch Active 2',
-        variant: 'Đen Midnight · Mặt 44mm',
-        price: 199.00,
-        originalPrice: 249.00,
-        quantity: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
+        key: 'processing',
+        label: 'Đang chuẩn bị kiện hàng',
+        icon: 'cube',
+        date: '2026-03-01T11:00:00Z',
+        completed: false,
       },
     ],
-  },
-  {
-    id: 'ORD-16504',
-    userId: 'user_alex_carter',
-    customerName: 'Trần Minh Alex',
-    phoneNumber: '+84 901 284 920',
-    shippingAddress: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
-    date: '22/10/2026',
-    itemCount: 1,
-    subtotal: 149.00,
-    shippingFee: 5.00,
-    discountAmount: 0.00,
-    totalAmount: 154.00,
-    status: 'Đã hủy',
-    currentStep: 0,
-    canCancel: false,
-    cancelReason: 'Đổi ý, muốn đổi sang sản phẩm khác',
-    cancelledAt: '22/10/2026 14:35',
-    paymentMethod: 'Thẻ Visa ···· 4290',
-    items: [
-      {
-        productId: 'prod_vortex_gaming',
-        brand: 'Vortex',
-        name: 'Tai nghe gaming âm thanh vòm Vortex 7.1',
-        variant: 'Đen Huyền Bí · Cổng Cắm USB',
-        price: 149.00,
-        originalPrice: 199.00,
-        quantity: 1,
-        imageUrl: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=700&auto=format&fit=crop&q=80',
-      },
-    ],
+    createdAt: '2026-03-01T10:30:00Z',
   },
 ];
 
-// 6. MÃ GIẢM GIÁ (PROMOS)
-const promoCodes = [
+// 8. FAQS & SUPPORT
+const faqGroups = [
+  { id: 'order', name: 'Đơn hàng & Thanh toán' },
+  { id: 'shipping', name: 'Vận chuyển & Giao nhận' },
+  { id: 'returns', name: 'Đổi trả & Bảo hành' },
+];
+
+const faqs = [
   {
-    code: 'NOVA10',
-    discountPercent: 10,
-    description: 'Giảm 10% cho toàn bộ phụ kiện công nghệ',
+    id: 'faq_1',
+    groupId: 'order',
+    question: 'Tôi có thể huỷ đơn hàng sau khi đặt không?',
+    answer: 'Bạn có thể huỷ đơn hàng khi đơn ở trạng thái Chờ xử lý hoặc Đang chuẩn bị bằng cách vào Chi tiết đơn hàng và bấm nút Huỷ đơn.',
   },
   {
-    code: 'FLASH20',
-    discountPercent: 20,
-    description: 'Giảm 20% cho đợt Flash Sale thiết bị âm thanh',
-  },
-  {
-    code: 'WELCOME15',
-    discountPercent: 15,
-    description: 'Giảm 15% cho thành viên mới lần đầu mua sắm',
+    id: 'faq_2',
+    groupId: 'shipping',
+    question: 'Thời gian giao hàng mất bao lâu?',
+    answer: 'Giao tiêu chuẩn từ 3-5 ngày, giao nhanh từ 1-2 ngày và hỏa tốc nội thành trong 2 giờ.',
   },
 ];
 
-async function seedFinalVietnameseDatabase() {
-  console.log('🚀 Bắt đầu nạp dữ liệu tiếng Việt chuẩn vào Firebase Firestore...\n');
+const popularSearches = [
+  { id: 'ps_1', keyword: 'Tai nghe chống ồn', count: 1250 },
+  { id: 'ps_2', keyword: 'Đồng hồ thông minh', count: 980 },
+  { id: 'ps_3', keyword: 'Laptop OLED', count: 740 },
+  { id: 'ps_4', keyword: 'Điện thoại 5G', count: 620 },
+];
 
-  // 1. Categories
-  console.log('📦 1. Nạp Categories (Âm thanh, Điện thoại, Laptop & Máy tính, Phụ kiện & Đồng hồ)...');
-  for (const cat of categories) {
-    await setDoc(doc(db, 'categories', cat.id), cat);
-    console.log(`   + Danh mục: ${cat.name}`);
+async function seedDatabase() {
+  console.log('🚀 Bắt đầu seed dữ liệu Firestore chuẩn sản phẩm...\n');
+
+  // Categories
+  console.log(`📦 1. Seeding ${categories.length} categories...`);
+  for (const item of categories) {
+    await setDoc(doc(db, 'categories', item.id), item);
   }
 
-  // 2. Brands
-  console.log('\n🏷️ 2. Nạp Brands (AuraSound, Pulse, Stratus, Tempo, Vortex)...');
-  for (const b of brands) {
-    await setDoc(doc(db, 'brands', b.id), b);
-    console.log(`   + Hãng: ${b.name}`);
+  // Brands
+  console.log(`🏷️ 2. Seeding ${brands.length} brands...`);
+  for (const item of brands) {
+    await setDoc(doc(db, 'brands', item.id), item);
   }
 
-  // 3. Products
-  console.log('\n📱 3. Nạp Products (12 sản phẩm công nghệ tiếng Việt chuẩn)...');
-  for (const p of products) {
-    await setDoc(doc(db, 'products', p.id), p);
-    console.log(`   + [${p.brand}] ${p.name} - $${p.price}`);
+  // Shipping Methods
+  console.log(`🚚 3. Seeding ${shippingMethods.length} shipping methods...`);
+  for (const item of shippingMethods) {
+    await setDoc(doc(db, 'shippingMethods', item.id), item);
   }
 
-  // 4. Users
-  console.log('\n👤 4. Nạp Users (Trần Minh Alex, Trần Văn Toàn, Nguyễn Thu Phương)...');
-  for (const u of users) {
-    await setDoc(doc(db, 'users', u.id), u);
-    console.log(`   + Người dùng: ${u.fullName} (${u.email}) - ${u.membershipBadge}`);
+  // Vouchers
+  console.log(`🎟️ 4. Seeding ${vouchers.length} vouchers (and sync promos)...`);
+  for (const item of vouchers) {
+    await setDoc(doc(db, 'vouchers', item.code), item);
+    // Also sync to promos for backwards compatibility
+    await setDoc(doc(db, 'promos', item.code), {
+      code: item.code,
+      discountPercent: item.type === 'percent' ? item.value : 0,
+      description: item.title,
+    });
   }
 
-  // 5. Orders
-  console.log('\n🧾 5. Nạp Orders (Đơn hàng #ORD-21530 & #ORD-19842 bằng tiếng Việt)...');
-  for (const o of orders) {
-    await setDoc(doc(db, 'orders', o.id), o);
-    console.log(`   + Đơn hàng #${o.id} - Tổng tiền: $${o.totalAmount} (${o.status})`);
+  // Products
+  console.log(`📱 5. Seeding ${products.length} products...`);
+  for (const item of products) {
+    await setDoc(doc(db, 'products', item.id), item);
   }
 
-  // 6. Promos
-  console.log('\n🎟️ 6. Nạp Promo Codes (NOVA10, FLASH20, WELCOME15)...');
-  for (const promo of promoCodes) {
-    await setDoc(doc(db, 'promos', promo.code), promo);
-    console.log(`   + Mã giảm giá: ${promo.code} (-${promo.discountPercent}%) - ${promo.description}`);
+  // Users & Subcollections
+  console.log(`👤 6. Seeding ${users.length} users with addresses, cards & settings...`);
+  for (const user of users) {
+    await setDoc(doc(db, 'users', user.uid), user);
+
+    // Seed default address
+    await setDoc(doc(db, 'users', user.uid, 'addresses', 'addr_home'), {
+      id: 'addr_home',
+      label: 'Nhà riêng',
+      fullName: user.fullName,
+      phone: user.phoneNumber,
+      address: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
+      isDefault: true,
+    });
+
+    // Seed default payment method
+    await setDoc(doc(db, 'users', user.uid, 'paymentMethods', 'card_visa_default'), {
+      id: 'card_visa_default',
+      type: 'card',
+      name: 'Visa Platinum',
+      detail: 'Visa •••• 4242',
+      expiry: '12/28',
+      isDefault: true,
+      color: '#1E3A8A',
+    });
+
+    // Seed user settings
+    await setDoc(doc(db, 'users', user.uid, 'settings', 'app'), {
+      language: 'vi',
+      currency: 'VND',
+      darkMode: false,
+      pushEnabled: true,
+      emailEnabled: true,
+      biometricEnabled: false,
+    });
   }
 
-  console.log('\n🎉🎉🎉 HOÀN TẤT 100%! Toàn bộ 6 collections đã được chuyển sang Tiếng Việt chuẩn chỉnh!');
+  // Orders
+  console.log(`🧾 7. Seeding ${orders.length} orders...`);
+  for (const order of orders) {
+    await setDoc(doc(db, 'orders', order.id), order);
+  }
+
+  // FAQs
+  console.log(`❓ 8. Seeding FAQs & Support...`);
+  for (const g of faqGroups) {
+    await setDoc(doc(db, 'faqGroups', g.id), g);
+  }
+  for (const f of faqs) {
+    await setDoc(doc(db, 'faqs', f.id), f);
+  }
+  for (const ps of popularSearches) {
+    await setDoc(doc(db, 'popularSearches', ps.id), ps);
+  }
+
+  console.log('\n🔍 Kiểm tra xác minh số lượng document sau seed:');
+  const catSnap = await getDocs(collection(db, 'categories'));
+  const brandSnap = await getDocs(collection(db, 'brands'));
+  const prodSnap = await getDocs(collection(db, 'products'));
+  const voucherSnap = await getDocs(collection(db, 'vouchers'));
+  const shipSnap = await getDocs(collection(db, 'shippingMethods'));
+  const orderSnap = await getDocs(collection(db, 'orders'));
+
+  console.log(`  + categories: ${catSnap.size} docs`);
+  console.log(`  + brands: ${brandSnap.size} docs`);
+  console.log(`  + products: ${prodSnap.size} docs`);
+  console.log(`  + vouchers: ${voucherSnap.size} docs`);
+  console.log(`  + shippingMethods: ${shipSnap.size} docs`);
+  console.log(`  + orders: ${orderSnap.size} docs`);
+
+  console.log('\n🎉 [Seed Firestore] Hoàn tất 100% dữ liệu!');
   process.exit(0);
 }
 
-seedFinalVietnameseDatabase().catch((err) => {
-  console.error('❌ Lỗi:', err);
+seedDatabase().catch((err) => {
+  console.error('❌ Lỗi seed database:', err);
   process.exit(1);
 });
