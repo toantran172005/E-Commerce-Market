@@ -34,8 +34,9 @@
     "test": "npm run test:all",
     "postinstall": "node -e \"const fs=require('fs'),f='node_modules/@expo/ws-tunnel/build/index.js';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');if(c.includes('new s.WebSocket(')){fs.writeFileSync(f,c.replace('new s.WebSocket(','new (s.WebSocket||s)('),'utf8')}}\"",
     "test:unit": "npx tsx --test tests/utils.test.mjs",
+    "test:uc": "npx tsx --test tests/uc/UC001_to_UC021.test.mjs",
     "test:integration": "npx tsx --test tests/services.test.mjs tests/integration/usecases.test.mjs",
-    "test:all": "npx tsx --test tests/utils.test.mjs tests/services.test.mjs tests/integration/usecases.test.mjs"
+    "test:all": "npx tsx --test tests/utils.test.mjs tests/services.test.mjs tests/integration/usecases.test.mjs tests/uc/UC001_to_UC021.test.mjs"
   },
   "private": true
 }

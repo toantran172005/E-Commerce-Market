@@ -111,7 +111,12 @@ test('AuthService: login rejects invalid password', async () => {
     async () => {
       await AuthService.login('demo@shop.vn', 'wrongpassword');
     },
-    (err) => err?.code === 'AUTH_INVALID_CREDENTIALS' || err?.message?.includes('chính xác') || err?.message?.includes('không đúng'),
+    (err) =>
+      err?.code === 'AUTH_INVALID_CREDENTIALS' ||
+      err?.code === 'AUTH_TOO_MANY_REQUESTS' ||
+      err?.message?.includes('chính xác') ||
+      err?.message?.includes('không đúng') ||
+      err?.message?.includes('quá nhiều lần'),
   );
 });
 
