@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, initializeAuth, type Auth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { Platform } from "react-native";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyCPkVyg1V7erOSe2KWUvp9pDfO5EgVsJs4",
@@ -15,19 +14,20 @@ const firebaseConfig = {
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 function initAuth(): Auth {
-  if (Platform.OS === 'web') {
-    return getAuth(app);
-  }
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const authModule = require('firebase/auth');
-    if (typeof authModule.getReactNativePersistence === 'function') {
-      return initializeAuth(app, {
-        persistence: authModule.getReactNativePersistence(AsyncStorage),
-      });
+  // Check if running inside React Native runtime
+  const isRN = typeof navigator !== 'undefined' && (navigator as any).product === 'ReactNative';
+  if (isRN) {
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const authModule = require('firebase/auth');
+      if (typeof authModule.getReactNativePersistence === 'function') {
+        return initializeAuth(app, {
+          persistence: authModule.getReactNativePersistence(AsyncStorage),
+        });
+      }
+    } catch {
+      // Fallback to getAuth
     }
-  } catch {
-    // Fallback if already initialized or running in non-RN test runner
   }
   return getAuth(app);
 }

@@ -1,6 +1,14 @@
 // ECommerceApp/tests/services.test.mjs
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import { terminate } from 'firebase/firestore';
+import { db } from '../src/firebaseConfig.ts';
+
+after(async () => {
+  try {
+    await terminate(db);
+  } catch {}
+});
 
 import { CatalogService } from '../src/services/catalog.service.ts';
 import { VoucherService } from '../src/services/voucher.service.ts';

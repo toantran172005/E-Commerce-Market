@@ -1,52 +1,95 @@
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import { Voucher } from '../types';
-import { apiError, respond } from './http';
+import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
 import { MOCK_VOUCHERS } from '../mock/vouchers';
 import { computeVoucherDiscount } from '../utils/pricing';
 
 /**
- * Giả lập Voucher API.
- *
- * GET /vouchers
- * POST /vouchers/validate — body { code, subtotal, shippingFee }
+ * Service quản lý và kiểm tra mã giảm giá (Vouchers) từ Cloud Firestore.
  */
 export const VoucherService = {
-  /** GET /vouchers */
+  /** Lấy danh sách toàn bộ vouchers khả dụng */
   async listVouchers(): Promise<Voucher[]> {
-    return respond(MOCK_VOUCHERS);
+    if (IS_MOCK_MODE) return MOCK_VOUCHERS;
+
+    try {
+      const snap = await getDocs(collection(db, 'vouchers'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Voucher, 'id'>) }));
+      }
+      return MOCK_VOUCHERS;
+    } catch {
+      return MOCK_VOUCHERS;
+    }
   },
 
   /**
-   * POST /vouchers/validate
-   * Trả về voucher hợp lệ hoặc ném ApiError với code VOUCHER_*.
+   * Xác thực và tính toán giá trị chiết khấu của voucher:
+   * Kiểm tra tồn tại, kích hoạt, hạn dùng, lượt dùng và giá trị đơn hàng tối thiểu.
    */
   async validateVoucher(
     code: string,
     subtotal: number,
     shippingFee = 0,
   ): Promise<{ voucher: Voucher; discount: number }> {
-    await respond(null);
     const normalized = code.trim().toUpperCase();
-    const voucher = MOCK_VOUCHERS.find((v) => v.code === normalized);
+    if (!normalized) {
+      apiError('VOUCHER_INVALID', 'Vui lòng nhập mã giảm giá.');
+    }
+
+    let voucher: Voucher | null = null;
+
+    if (!IS_MOCK_MODE) {
+      try {
+        const snap = await getDoc(doc(db, 'vouchers', normalized));
+        if (snap.exists()) {
+          voucher = { id: snap.id, ...(snap.data() as Omit<Voucher, 'id'>) };
+        }
+      } catch {
+        // Fallback below
+      }
+    }
 
     if (!voucher) {
-      apiError('VOUCHER_NOT_FOUND', `Mã ${normalized} không tồn tại.`);
+      voucher = MOCK_VOUCHERS.find((v) => v.code === normalized) ?? null;
     }
+
+    if (!voucher) {
+      apiError('VOUCHER_NOT_FOUND', `Mã giảm giá "${normalized}" không tồn tại.`);
+    }
+
+    // 1. Kiểm tra trạng thái kích hoạt
     if (!voucher.isActive) {
-      apiError('VOUCHER_EXPIRED', `Mã ${normalized} đã hết hạn.`);
+      apiError('VOUCHER_EXPIRED', `Mã giảm giá "${normalized}" đã hết hạn sử dụng.`);
     }
-    if (voucher.usedCount >= voucher.usageLimit) {
-      apiError('VOUCHER_OUT_OF_USAGE', `Mã ${normalized} đã dùng hết lượt.`);
+
+    // 2. Kiểm tra hạn dùng
+    if (voucher.expiresAt) {
+      const expiry = new Date(voucher.expiresAt).getTime();
+      if (!isNaN(expiry) && expiry < Date.now()) {
+        apiError('VOUCHER_EXPIRED', `Mã giảm giá "${normalized}" đã hết hạn.`);
+      }
     }
+
+    // 3. Kiểm tra số lần sử dụng tối đa
+    if (voucher.usageLimit > 0 && voucher.usedCount >= voucher.usageLimit) {
+      apiError('VOUCHER_OUT_OF_USAGE', `Mã giảm giá "${normalized}" đã được sử dụng hết lượt.`);
+    }
+
+    // 4. Kiểm tra giá trị đơn hàng tối thiểu
     if (subtotal < voucher.minOrderValue) {
       apiError(
         'VOUCHER_MIN_ORDER_NOT_MET',
-        `Không thể áp dụng mã ${normalized} cho tổng tiền dưới $${voucher.minOrderValue.toFixed(0)}.`,
+        `Đơn hàng chưa đạt giá trị tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ để áp dụng mã này.`,
       );
     }
 
+    const discount = computeVoucherDiscount(voucher, subtotal, shippingFee);
+
     return {
-      voucher: voucher as Voucher,
-      discount: computeVoucherDiscount(voucher as Voucher, subtotal, shippingFee),
+      voucher,
+      discount,
     };
   },
 };

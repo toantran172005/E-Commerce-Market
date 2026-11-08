@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,14 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../src/constants/theme';
-import { MOCK_CATEGORIES } from '../../src/mock/categories';
+import { CatalogService } from '../../src/services/catalog.service';
 import { useProductSearch } from '../../src/hooks/useProductSearch';
 import { useProductFilter } from '../../src/context/ProductFilterContext';
 import { useCart } from '../../src/context/CartContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 import { useAuth } from '../../src/context/AuthContext';
-import { Product } from '../../src/types';
+import { Category, Product } from '../../src/types';
 import { formatMoney, calcDiscountPercent } from '../../src/utils/format';
 import { RatingStars } from '../../src/components/RatingStars';
 import { LoadingView } from '../../src/components/LoadingView';
@@ -182,7 +182,15 @@ export default function HomeScreen() {
 
   const [isGrid, setIsGrid] = useState(true);
 
-  const homeCategories = useMemo(() => MOCK_CATEGORIES.slice(0, 7), []);
+  const [homeCategories, setHomeCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    CatalogService.getCategories().then((cats) => {
+      if (isMounted) setHomeCategories(cats.slice(0, 7));
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();

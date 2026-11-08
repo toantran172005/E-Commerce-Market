@@ -8,11 +8,10 @@ import React, {
   ReactNode,
 } from 'react';
 import { Order } from '../types';
-import { getErrorMessage, ApiError } from '../services/http';
 import { OrderService } from '../services/order.service';
+import { CatalogService } from '../services/catalog.service';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
-import { MOCK_PRODUCTS } from '../mock/products';
 
 interface OrdersContextValue {
   orders: Order[];
@@ -39,14 +38,17 @@ export function OrdersProvider({
   const [error, setError] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
+    if (!user) {
+      setOrders([]);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const uid = user?.uid ?? 'user-demo';
-      const data = await OrderService.listOrders(uid);
+      const data = await OrderService.listOrders(user.uid);
       setOrders(data);
-    } catch (e) {
-      setError(getErrorMessage(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Không tải được danh sách đơn hàng');
     } finally {
       setLoading(false);
     }
@@ -73,12 +75,16 @@ export function OrdersProvider({
 
   const reorder = useCallback(async (id: string) => {
     const items = await OrderService.reorder(id);
-    items.forEach((item) => {
-      const product = MOCK_PRODUCTS.find((p) => p.id === item.productId);
-      if (product) {
-        addItem(product, item.quantity);
+    for (const item of items) {
+      try {
+        const product = await CatalogService.getProductById(item.productId);
+        if (product) {
+          addItem(product, item.quantity);
+        }
+      } catch {
+        // Skip unavailable items
       }
-    });
+    }
   }, [addItem]);
 
   const reset = useCallback(() => {
@@ -89,7 +95,7 @@ export function OrdersProvider({
     () => ({
       orders,
       loading,
-      error: error as string | null,
+      error,
       loadOrders,
       getOrderById,
       addOrder,
@@ -105,10 +111,6 @@ export function OrdersProvider({
 
 export function useOrders(): OrdersContextValue {
   const ctx = useContext(OrdersContext);
-  if (!ctx) {
-    throw new Error('useOrders phải được dùng bên trong <OrdersProvider>');
-  }
+  if (!ctx) throw new Error('useOrders phải được dùng bên trong OrdersProvider');
   return ctx;
 }
-
-export type { ApiError };

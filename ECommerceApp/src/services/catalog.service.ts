@@ -1,14 +1,27 @@
 import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit as fsLimit,
+} from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import {
   Brand,
   Category,
   Product,
   Review,
+  ShippingMethod,
 } from '../types';
-import { apiError, respond } from './http';
+import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
 import { MOCK_CATEGORIES } from '../mock/categories';
 import { MOCK_BRANDS } from '../mock/brands';
 import { MOCK_PRODUCTS } from '../mock/products';
 import { MOCK_REVIEWS } from '../mock/reviews';
+import { MOCK_SHIPPING_METHODS } from '../mock/shippingMethods';
 
 export interface Paged<T> {
   items: T[];
@@ -34,81 +47,188 @@ export interface ProductQuery {
 }
 
 /**
- * Giả lập Catalog API.
- *
- * GET /categories
- * GET /brands
- * GET /products?category=&q=&brand=&minPrice=&maxPrice=&minRating=&sort=&page=&limit=
- * GET /products/:id
- * GET /products/:id/reviews
+ * Service quản lý danh mục, thương hiệu, sản phẩm và đánh giá từ Cloud Firestore.
  */
 export const CatalogService = {
-  /** GET /categories */
+  /** Lấy danh sách toàn bộ danh mục ngành hàng */
   async getCategories(): Promise<Category[]> {
-    return respond(MOCK_CATEGORIES);
+    if (IS_MOCK_MODE) return MOCK_CATEGORIES;
+
+    try {
+      const snap = await getDocs(collection(db, 'categories'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
+      }
+      return MOCK_CATEGORIES;
+    } catch {
+      return MOCK_CATEGORIES;
+    }
   },
 
-  /** GET /brands */
+  /** Lấy danh sách các thương hiệu */
   async getBrands(): Promise<Brand[]> {
-    return respond(MOCK_BRANDS);
+    if (IS_MOCK_MODE) return MOCK_BRANDS;
+
+    try {
+      const snap = await getDocs(collection(db, 'brands'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Brand, 'id'>) }));
+      }
+      return MOCK_BRANDS;
+    } catch {
+      return MOCK_BRANDS;
+    }
   },
 
-  /** GET /products — phân trang + lọc + sắp xếp */
-  async getProducts(query: ProductQuery = {}): Promise<Paged<Product>> {
-    await respond(null);
+  /** Lấy danh sách phương thức vận chuyển */
+  async getShippingMethods(): Promise<ShippingMethod[]> {
+    if (IS_MOCK_MODE) return MOCK_SHIPPING_METHODS;
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
-    const q = (query.q ?? '').trim().toLowerCase();
+    try {
+      const snap = await getDocs(collection(db, 'shippingMethods'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ShippingMethod, 'id'>) }));
+      }
+      return MOCK_SHIPPING_METHODS;
+    } catch {
+      return MOCK_SHIPPING_METHODS;
+    }
+  },
 
-    let result = MOCK_PRODUCTS.filter((p) => {
+  /**
+   * Truy vấn danh sách sản phẩm kết hợp đa tiêu chí:
+   * Tìm kiếm từ khoá, phân loại theo danh mục, thương hiệu, khoảng giá, rating, sắp xếp và phân trang.
+   */
+  async getProducts(productQuery: ProductQuery = {}): Promise<Paged<Product>> {
+    const page = productQuery.page ?? 1;
+    const limitNum = productQuery.limit ?? 10;
+    const q = (productQuery.q ?? '').trim().toLowerCase();
+
+    let allProducts: Product[] = [];
+
+    if (!IS_MOCK_MODE) {
+      try {
+        const snap = await getDocs(collection(db, 'products'));
+        if (!snap.empty) {
+          allProducts = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }));
+        } else {
+          allProducts = MOCK_PRODUCTS;
+        }
+      } catch {
+        allProducts = MOCK_PRODUCTS;
+      }
+    } else {
+      allProducts = MOCK_PRODUCTS;
+    }
+
+    // Lọc theo các tiêu chí (Client-side matching đảm bảo 100% nhất quán)
+    let filtered = allProducts.filter((p) => {
+      // 1. Từ khoá tìm kiếm
       if (q) {
         const haystack = `${p.name} ${p.brandName ?? ''} ${(p.tags ?? []).join(' ')}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      if (query.category && p.category !== query.category) return false;
-      if (query.categories && query.categories.length > 0 && !query.categories.includes(p.category)) return false;
-      if (query.brands && query.brands.length > 0 && !query.brands.includes(p.brandId ?? '')) return false;
-      if (query.minPrice != null && p.price < query.minPrice) return false;
-      if (query.maxPrice != null && p.price > query.maxPrice) return false;
-      if (query.minRating != null && (p.rating ?? 0) < query.minRating) return false;
+
+      // 2. Danh mục đơn lẻ
+      if (productQuery.category && p.category !== productQuery.category && (p as any).categoryId !== productQuery.category) {
+        return false;
+      }
+
+      // 3. Nhiều danh mục
+      if (productQuery.categories && productQuery.categories.length > 0) {
+        const matchCat = productQuery.categories.includes(p.category) ||
+          productQuery.categories.includes((p as any).categoryId ?? '');
+        if (!matchCat) return false;
+      }
+
+      // 4. Thương hiệu
+      if (productQuery.brands && productQuery.brands.length > 0) {
+        const matchBrand = productQuery.brands.includes(p.brandId ?? '') ||
+          productQuery.brands.includes(p.brandName ?? '');
+        if (!matchBrand) return false;
+      }
+
+      // 5. Khoảng giá
+      if (productQuery.minPrice != null && p.price < productQuery.minPrice) return false;
+      if (productQuery.maxPrice != null && p.price > productQuery.maxPrice) return false;
+
+      // 6. Điểm đánh giá sao
+      if (productQuery.minRating != null && (p.rating ?? 0) < productQuery.minRating) return false;
+
       return true;
     });
 
-    switch (query.sort ?? 'popular') {
+    // Sắp xếp
+    switch (productQuery.sort ?? 'popular') {
       case 'priceAsc':
-        result = [...result].sort((a, b) => a.price - b.price);
+        filtered = [...filtered].sort((a, b) => a.price - b.price);
         break;
       case 'priceDesc':
-        result = [...result].sort((a, b) => b.price - a.price);
+        filtered = [...filtered].sort((a, b) => b.price - a.price);
         break;
       case 'rating':
-        result = [...result].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        filtered = [...filtered].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
         break;
       case 'new':
-        result = [...result].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+        filtered = [...filtered].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
         break;
+      case 'popular':
       default:
-        result = [...result].sort((a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0));
+        filtered = [...filtered].sort((a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0));
     }
 
-    const total = result.length;
-    const start = (page - 1) * limit;
-    const items = result.slice(start, start + limit);
-    return { items, page, limit, total, hasMore: start + limit < total };
+    const total = filtered.length;
+    const start = (page - 1) * limitNum;
+    const items = filtered.slice(start, start + limitNum);
+
+    return {
+      items,
+      page,
+      limit: limitNum,
+      total,
+      hasMore: start + limitNum < total,
+    };
   },
 
-  /** GET /products/:id */
+  /** Lấy chi tiết một sản phẩm theo ID */
   async getProductById(id: string): Promise<Product> {
-    await respond(null);
-    const product = MOCK_PRODUCTS.find((p) => p.id === id);
-    if (!product) apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
-    return product as Product;
+    if (IS_MOCK_MODE) {
+      const p = MOCK_PRODUCTS.find((item) => item.id === id);
+      if (!p) apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
+      return p;
+    }
+
+    try {
+      const snap = await getDoc(doc(db, 'products', id));
+      if (snap.exists()) {
+        return { id: snap.id, ...(snap.data() as Omit<Product, 'id'>) };
+      }
+      // Fallback check mock
+      const p = MOCK_PRODUCTS.find((item) => item.id === id);
+      if (p) return p;
+      apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
+    } catch (err: unknown) {
+      if ((err as any)?.code === 'PRODUCT_NOT_FOUND') throw err;
+      const p = MOCK_PRODUCTS.find((item) => item.id === id);
+      if (p) return p;
+      throw mapFirebaseError(err, `Không tìm thấy sản phẩm #${id}.`);
+    }
   },
 
-  /** GET /products/:id/reviews */
+  /** Lấy danh sách đánh giá của sản phẩm */
   async getProductReviews(productId: string): Promise<Review[]> {
-    await respond(null);
-    return MOCK_REVIEWS.filter((r) => r.productId === productId);
+    if (IS_MOCK_MODE) {
+      return MOCK_REVIEWS.filter((r) => r.productId === productId);
+    }
+
+    try {
+      const snap = await getDocs(collection(db, 'products', productId, 'reviews'));
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Review, 'id'>) }));
+      }
+      return MOCK_REVIEWS.filter((r) => r.productId === productId);
+    } catch {
+      return MOCK_REVIEWS.filter((r) => r.productId === productId);
+    }
   },
 };

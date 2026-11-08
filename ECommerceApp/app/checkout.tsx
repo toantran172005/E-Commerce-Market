@@ -17,7 +17,6 @@ import { useAddresses } from '../src/context/AddressesContext';
 import { usePaymentMethods } from '../src/context/PaymentMethodsContext';
 import { formatMoney } from '../src/utils/format';
 import { computeCartTotals } from '../src/utils/pricing';
-import { MOCK_SHIPPING_METHODS } from '../src/mock/shippingMethods';
 import { PaymentMethod } from '../src/types';
 
 function getPaymentIcon(type: PaymentMethod['type']): keyof typeof Ionicons.glyphMap {
@@ -66,9 +65,9 @@ export default function CheckoutScreen() {
 
   const selectedShippingMethod = useMemo(
     () =>
-      MOCK_SHIPPING_METHODS.find((s) => s.id === checkout.shippingMethodId) ??
-      MOCK_SHIPPING_METHODS[0],
-    [checkout.shippingMethodId],
+      cart.shippingMethods.find((s) => s.id === checkout.shippingMethodId) ??
+      cart.shippingMethods[0],
+    [cart.shippingMethods, checkout.shippingMethodId],
   );
 
   const totals = useMemo(
@@ -200,7 +199,7 @@ export default function CheckoutScreen() {
             <Text style={styles.cardTitle}>Phương thức giao hàng</Text>
           </View>
 
-          {MOCK_SHIPPING_METHODS.map((method) => {
+          {cart.shippingMethods.map((method) => {
             const isSelected = checkout.shippingMethodId === method.id;
             const methodTotals = computeCartTotals(cart.items, cart.voucher, method);
             const isFree = methodTotals.shippingFee === 0;

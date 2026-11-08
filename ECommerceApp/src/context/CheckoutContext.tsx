@@ -11,7 +11,7 @@ import { Order } from '../types';
 import { ApiError } from '../services/http';
 import { OrderService } from '../services/order.service';
 import { computeCartTotals } from '../utils/pricing';
-import { MOCK_SHIPPING_METHODS } from '../mock/shippingMethods';
+import { DEFAULT_SHIPPING_METHOD } from './CartContext';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
 import { useOrders } from './OrdersContext';
@@ -49,7 +49,7 @@ export function CheckoutProvider({
 
   const [addressId, setAddressId] = useState<string | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
-  const [shippingMethodId, setShippingMethodId] = useState<string | null>(MOCK_SHIPPING_METHODS[0].id);
+  const [shippingMethodId, setShippingMethodId] = useState<string | null>(DEFAULT_SHIPPING_METHOD.id);
   const [note, setNote] = useState('');
   const [lastPlacedOrder, setLastPlacedOrder] = useState<Order | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -75,6 +75,10 @@ export function CheckoutProvider({
   }, [resetKey]);
 
   const placeOrder = useCallback(async (): Promise<Order> => {
+    if (placing) {
+      throw new ApiError('DUPLICATE_SUBMIT', 'Yêu cầu đặt hàng đang được xử lý, vui lòng chờ.');
+    }
+
     if (!user) {
       throw new ApiError('AUTH_REQUIRED', 'Vui lòng đăng nhập trước khi thanh toán.');
     }
@@ -95,7 +99,7 @@ export function CheckoutProvider({
     }
 
     const shipping =
-      MOCK_SHIPPING_METHODS.find((s) => s.id === shippingMethodId) ?? MOCK_SHIPPING_METHODS[0];
+      cart.shippingMethods.find((s) => s.id === shippingMethodId) ?? cart.shippingMethods[0] ?? DEFAULT_SHIPPING_METHOD;
     const totals = computeCartTotals(cart.items, cart.voucher, shipping);
 
     setPlacing(true);
@@ -131,7 +135,7 @@ export function CheckoutProvider({
       await notifications.addNotification({
         type: 'order',
         title: 'Đặt hàng thành công',
-        message: `Đơn ${created.id} đã được ghi nhận. Tổng ${totals.total.toFixed(2)}$ (đã gồm thuế).`,
+        message: `Đơn ${created.id} đã được ghi nhận. Tổng ${totals.total.toLocaleString('vi-VN')}đ (đã gồm thuế).`,
         data: { orderId: created.id },
       });
 
@@ -139,12 +143,12 @@ export function CheckoutProvider({
     } finally {
       setPlacing(false);
     }
-  }, [user, cart, orders, notifications, addresses, payments, addressId, paymentMethodId, shippingMethodId, note]);
+  }, [placing, user, cart, orders, notifications, addresses, payments, addressId, paymentMethodId, shippingMethodId, note]);
 
   const reset = useCallback(() => {
     setAddressId(null);
     setPaymentMethodId(null);
-    setShippingMethodId(MOCK_SHIPPING_METHODS[0].id);
+    setShippingMethodId(DEFAULT_SHIPPING_METHOD.id);
     setNote('');
     setLastPlacedOrder(null);
   }, []);
@@ -164,7 +168,20 @@ export function CheckoutProvider({
       placeOrder,
       reset,
     }),
-    [addressId, paymentMethodId, shippingMethodId, note, lastPlacedOrder, placing, placeOrder, reset],
+    [
+      addressId,
+      paymentMethodId,
+      shippingMethodId,
+      note,
+      lastPlacedOrder,
+      placing,
+      setAddressId,
+      setPaymentMethodId,
+      setShippingMethodId,
+      setNote,
+      placeOrder,
+      reset,
+    ],
   );
 
   return <CheckoutContext.Provider value={value}>{children}</CheckoutContext.Provider>;
@@ -172,8 +189,6 @@ export function CheckoutProvider({
 
 export function useCheckout(): CheckoutContextValue {
   const ctx = useContext(CheckoutContext);
-  if (!ctx) {
-    throw new Error('useCheckout phải được dùng bên trong <CheckoutProvider>');
-  }
+  if (!ctx) throw new Error('useCheckout phải được dùng bên trong CheckoutProvider');
   return ctx;
 }

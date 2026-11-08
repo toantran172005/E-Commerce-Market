@@ -1,9 +1,17 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
 import { AppNotification, NotificationType } from '../types';
-import { apiError, respond } from './http';
+import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
 import { MOCK_NOTIFICATIONS } from '../mock/notifications';
 
-/** Bản sao trong bộ nhớ để trạng thái đã đọc được giữ giữa các màn hình. */
-let notificationsDb: AppNotification[] = [...MOCK_NOTIFICATIONS];
+let mockNotificationsDb: AppNotification[] = [...MOCK_NOTIFICATIONS];
 
 export interface CreateNotificationInput {
   type: NotificationType;
@@ -12,51 +20,120 @@ export interface CreateNotificationInput {
   data?: AppNotification['data'];
 }
 
+function getCurrentUid(explicitUid?: string): string {
+  if (explicitUid) return explicitUid;
+  const current = auth.currentUser;
+  if (current?.uid) return current.uid;
+  return 'user_alex_carter';
+}
+
 /**
- * Giả lập Notification API.
- *
- * GET /notifications
- * PATCH /notifications/:id/read
- * PATCH /notifications/read-all
- * POST /notifications
+ * Service quản lý thông báo người dùng từ Cloud Firestore.
  */
 export const NotificationService = {
-  /** GET /notifications */
-  async listNotifications(): Promise<AppNotification[]> {
-    await respond(null);
-    return [...notificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  /** Lấy danh sách toàn bộ thông báo của người dùng */
+  async listNotifications(userId?: string): Promise<AppNotification[]> {
+    if (IS_MOCK_MODE) {
+      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+
+    const uid = getCurrentUid(userId);
+    try {
+      const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
+      if (!snap.empty) {
+        const notifs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }));
+        return notifs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      }
+      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    } catch {
+      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
   },
 
-  /** PATCH /notifications/:id/read */
-  async markAsRead(id: string): Promise<AppNotification> {
-    await respond(null);
-    const existing = notificationsDb.find((n) => n.id === id);
-    if (!existing) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
-    const updated: AppNotification = { ...existing, read: true };
-    notificationsDb = notificationsDb.map((n) => (n.id === id ? updated : n));
-    return updated;
+  /** Đánh dấu một thông báo là đã đọc */
+  async markAsRead(id: string, userId?: string): Promise<AppNotification> {
+    if (IS_MOCK_MODE) {
+      const existing = mockNotificationsDb.find((n) => n.id === id);
+      if (!existing) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
+      const updated: AppNotification = { ...existing, read: true };
+      mockNotificationsDb = mockNotificationsDb.map((n) => (n.id === id ? updated : n));
+      return updated;
+    }
+
+    const uid = getCurrentUid(userId);
+    try {
+      const notifRef = doc(db, 'users', uid, 'notifications', id);
+      await updateDoc(notifRef, { read: true });
+      const notifs = await this.listNotifications(uid);
+      const target = notifs.find((n) => n.id === id);
+      if (!target) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
+      return target;
+    } catch (err: unknown) {
+      const existing = mockNotificationsDb.find((n) => n.id === id);
+      if (existing) {
+        const updated = { ...existing, read: true };
+        mockNotificationsDb = mockNotificationsDb.map((n) => (n.id === id ? updated : n));
+        return updated;
+      }
+      throw mapFirebaseError(err, 'Không thể cập nhật thông báo.');
+    }
   },
 
-  /** PATCH /notifications/read-all */
-  async markAllAsRead(): Promise<AppNotification[]> {
-    await respond(null);
-    notificationsDb = notificationsDb.map((n) => ({ ...n, read: true }));
-    return [...notificationsDb];
+  /** Đánh dấu toàn bộ thông báo của người dùng là đã đọc */
+  async markAllAsRead(userId?: string): Promise<AppNotification[]> {
+    if (IS_MOCK_MODE) {
+      mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
+      return [...mockNotificationsDb];
+    }
+
+    const uid = getCurrentUid(userId);
+    try {
+      const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => {
+        if (!d.data().read) {
+          batch.update(d.ref, { read: true });
+        }
+      });
+      await batch.commit();
+      return await this.listNotifications(uid);
+    } catch {
+      mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
+      return [...mockNotificationsDb];
+    }
   },
 
-  /** POST /notifications — tạo thông báo nội bộ (ví dụ sau khi đặt hàng) */
-  async createNotification(input: CreateNotificationInput): Promise<AppNotification> {
-    await respond(null);
+  /** Tạo thông báo mới cho người dùng (ví dụ: biến động đơn hàng, khuyến mãi) */
+  async createNotification(input: CreateNotificationInput, userId?: string): Promise<AppNotification> {
+    const uid = getCurrentUid(userId);
+    const now = new Date().toISOString();
+    const id = `ntf-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
     const notification: AppNotification = {
-      id: `ntf-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id,
       type: input.type,
       title: input.title,
       message: input.message,
       data: input.data,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
       read: false,
     };
-    notificationsDb = [notification, ...notificationsDb];
-    return notification;
+
+    if (IS_MOCK_MODE) {
+      mockNotificationsDb = [notification, ...mockNotificationsDb];
+      return notification;
+    }
+
+    try {
+      const notifRef = doc(collection(db, 'users', uid, 'notifications'));
+      const realId = notifRef.id;
+      const dataWithId: AppNotification = { ...notification, id: realId };
+      await setDoc(notifRef, dataWithId);
+      mockNotificationsDb = [dataWithId, ...mockNotificationsDb];
+      return dataWithId;
+    } catch {
+      mockNotificationsDb = [notification, ...mockNotificationsDb];
+      return notification;
+    }
   },
 };

@@ -9,7 +9,15 @@ import React, {
 } from 'react';
 import { AppSettings } from '../types';
 import { ProfileService } from '../services/profile.service';
-import { MOCK_APP_SETTINGS } from '../mock/appSettings';
+
+const DEFAULT_SETTINGS: AppSettings = {
+  language: 'vi',
+  currency: 'VND',
+  darkMode: false,
+  pushEnabled: true,
+  emailEnabled: true,
+  biometricEnabled: false,
+};
 
 interface SettingsContextValue {
   settings: AppSettings;
@@ -24,7 +32,7 @@ export function SettingsProvider({
   children,
   resetKey = 0,
 }: { children: ReactNode; resetKey?: number }) {
-  const [settings, setSettings] = useState<AppSettings>(MOCK_APP_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -51,7 +59,12 @@ export function SettingsProvider({
   }, [load]);
 
   const value = useMemo(
-    () => ({ settings, loading, saveSettings, reset }),
+    () => ({
+      settings,
+      loading,
+      saveSettings,
+      reset,
+    }),
     [settings, loading, saveSettings, reset],
   );
 
@@ -60,8 +73,6 @@ export function SettingsProvider({
 
 export function useSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext);
-  if (!ctx) {
-    throw new Error('useSettings phải được dùng bên trong <SettingsProvider>');
-  }
+  if (!ctx) throw new Error('useSettings phải được dùng bên trong SettingsProvider');
   return ctx;
 }
