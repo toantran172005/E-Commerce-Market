@@ -63,11 +63,18 @@ export const NotificationService = {
     const uid = getCurrentUid(userId);
     try {
       const notifRef = doc(db, 'users', uid, 'notifications', id);
-      await updateDoc(notifRef, { read: true });
+      await setDoc(notifRef, { read: true }, { merge: true });
       const notifs = await this.listNotifications(uid);
       const target = notifs.find((n) => n.id === id);
-      if (!target) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
-      return target;
+      if (target) return target;
+      return {
+        id,
+        type: 'order',
+        title: 'Thông báo',
+        message: '',
+        createdAt: new Date().toISOString(),
+        read: true,
+      };
     } catch (err: unknown) {
       const existing = mockNotificationsDb.find((n) => n.id === id);
       if (existing) {

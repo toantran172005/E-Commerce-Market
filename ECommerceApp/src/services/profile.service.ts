@@ -41,9 +41,9 @@ export const ProfileService = {
       if (!snap.empty) {
         return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Address, 'id'>) }));
       }
-      return [...mockAddressesDb];
+      return userId ? [] : [...mockAddressesDb];
     } catch {
-      return [...mockAddressesDb];
+      return userId ? [] : [...mockAddressesDb];
     }
   },
 
@@ -75,7 +75,7 @@ export const ProfileService = {
       if (willBeDefault) {
         for (const addr of addresses) {
           if (addr.isDefault) {
-            batch.update(doc(db, 'users', uid, 'addresses', addr.id), { isDefault: false });
+            batch.set(doc(db, 'users', uid, 'addresses', addr.id), { isDefault: false }, { merge: true });
           }
         }
       }
@@ -138,7 +138,7 @@ export const ProfileService = {
       batch.delete(doc(db, 'users', uid, 'addresses', id));
 
       if (target.isDefault && remaining.length > 0) {
-        batch.update(doc(db, 'users', uid, 'addresses', remaining[0].id), { isDefault: true });
+        batch.set(doc(db, 'users', uid, 'addresses', remaining[0].id), { isDefault: true }, { merge: true });
       }
 
       await batch.commit();
@@ -165,7 +165,7 @@ export const ProfileService = {
 
       const batch = writeBatch(db);
       for (const a of addresses) {
-        batch.update(doc(db, 'users', uid, 'addresses', a.id), { isDefault: a.id === id });
+        batch.set(doc(db, 'users', uid, 'addresses', a.id), { isDefault: a.id === id }, { merge: true });
       }
       await batch.commit();
 
@@ -187,9 +187,9 @@ export const ProfileService = {
       if (!snap.empty) {
         return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PaymentMethod, 'id'>) }));
       }
-      return [...mockPaymentsDb];
+      return userId ? [] : [...mockPaymentsDb];
     } catch {
-      return [...mockPaymentsDb];
+      return userId ? [] : [...mockPaymentsDb];
     }
   },
 
@@ -221,7 +221,7 @@ export const ProfileService = {
       if (willBeDefault) {
         for (const m of methods) {
           if (m.isDefault) {
-            batch.update(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: false });
+            batch.set(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: false }, { merge: true });
           }
         }
       }
@@ -265,7 +265,7 @@ export const ProfileService = {
       batch.delete(doc(db, 'users', uid, 'paymentMethods', id));
 
       if (target.isDefault && remaining.length > 0) {
-        batch.update(doc(db, 'users', uid, 'paymentMethods', remaining[0].id), { isDefault: true });
+        batch.set(doc(db, 'users', uid, 'paymentMethods', remaining[0].id), { isDefault: true }, { merge: true });
       }
 
       await batch.commit();
@@ -292,7 +292,7 @@ export const ProfileService = {
 
       const batch = writeBatch(db);
       for (const m of methods) {
-        batch.update(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: m.id === id });
+        batch.set(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: m.id === id }, { merge: true });
       }
       await batch.commit();
 

@@ -13,9 +13,11 @@
     "expo-status-bar": "~58.0.4",
     "firebase": "^12.19.0",
     "react": "19.3.0",
+    "react-dom": "19.3.0",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "~4.30.0"
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "^0.21.4"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",
@@ -28,8 +30,11 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "npx tsx --test tests/utils.test.mjs tests/services.test.mjs",
-    "postinstall": "node -e \"const fs=require('fs'),f='node_modules/@expo/ws-tunnel/build/index.js';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');if(c.includes('new s.WebSocket(')){fs.writeFileSync(f,c.replace('new s.WebSocket(','new (s.WebSocket||s)('),'utf8')}}\""
+    "test": "npm run test:all",
+    "postinstall": "node -e \"const fs=require('fs'),f='node_modules/@expo/ws-tunnel/build/index.js';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');if(c.includes('new s.WebSocket(')){fs.writeFileSync(f,c.replace('new s.WebSocket(','new (s.WebSocket||s)('),'utf8')}}\"",
+    "test:unit": "npx tsx --test tests/utils.test.mjs",
+    "test:integration": "npx tsx --test tests/services.test.mjs tests/integration/usecases.test.mjs",
+    "test:all": "npx tsx --test tests/utils.test.mjs tests/services.test.mjs tests/integration/usecases.test.mjs"
   },
   "private": true
 }
