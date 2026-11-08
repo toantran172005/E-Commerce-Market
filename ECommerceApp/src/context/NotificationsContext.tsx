@@ -48,13 +48,27 @@ export function NotificationsProvider({
   }, [loadNotifications, resetKey]);
 
   const markAsRead = useCallback(async (id: string) => {
-    const updated = await NotificationService.markAsRead(id);
-    setNotifications((prev) => prev.map((n) => (n.id === id ? updated : n)));
+    // Cập nhật lạc quan (optimistic) tức thì để biến mất red dot và đổi nền thẻ
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+    try {
+      const updated = await NotificationService.markAsRead(id);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? updated : n)));
+    } catch {
+      // Giữ nguyên trạng thái đã đọc trên giao diện người dùng
+    }
   }, []);
 
   const markAllAsRead = useCallback(async () => {
-    const updated = await NotificationService.markAllAsRead();
-    setNotifications(updated);
+    // Cập nhật lạc quan toàn bộ danh sách tức thì
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      const updated = await NotificationService.markAllAsRead();
+      setNotifications(updated);
+    } catch {
+      // Giữ nguyên trạng thái đã đọc trên giao diện người dùng
+    }
   }, []);
 
   const addNotification = useCallback(

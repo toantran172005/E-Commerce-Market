@@ -189,20 +189,45 @@ export const ProfileService = {
 
   /* ----------------------- PHƯƠNG THỨC THANH TOÁN ----------------------- */
 
-  /** Lấy danh sách phương thức thanh toán đã lưu */
+  /** Lấy danh sách phương thức thanh toán đã lưu (luôn bảo đảm COD tồn tại & là mặc định nếu chưa chọn thẻ khác) */
   async listPaymentMethods(userId?: string): Promise<PaymentMethod[]> {
-    if (IS_MOCK_MODE) return [...mockPaymentsDb];
-
-    const uid = getCurrentUid(userId);
-    try {
-      const snap = await getDocs(collection(db, 'users', uid, 'paymentMethods'));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PaymentMethod, 'id'>) }));
+    let list: PaymentMethod[] = [];
+    if (IS_MOCK_MODE) {
+      list = [...mockPaymentsDb];
+    } else {
+      const uid = getCurrentUid(userId);
+      try {
+        const snap = await getDocs(collection(db, 'users', uid, 'paymentMethods'));
+        if (!snap.empty) {
+          list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PaymentMethod, 'id'>) }));
+        } else {
+          list = userId ? [] : [...mockPaymentsDb];
+        }
+      } catch {
+        list = userId ? [] : [...mockPaymentsDb];
       }
-      return userId ? [] : [...mockPaymentsDb];
-    } catch {
-      return userId ? [] : [...mockPaymentsDb];
     }
+
+    // Lọc bỏ các document rác thiếu detail/name (nếu có)
+    list = list.filter((p) => p && p.name && p.detail);
+
+    const hasCod = list.some((p) => p.id === 'pay-cod' || p.type === 'cod');
+    const hasDefault = list.some((p) => p.isDefault);
+
+    if (!hasCod) {
+      const codDefault: PaymentMethod = {
+        id: 'pay-cod',
+        type: 'cod',
+        name: 'Thanh toán khi nhận hàng',
+        detail: 'COD - Trả tiền mặt khi giao',
+        isDefault: !hasDefault,
+      };
+      // Đặt COD ở đầu danh sách để thẻ mới thêm luôn nằm cuối mảng list[list.length - 1]
+      list = [codDefault, ...list];
+    } else if (!hasDefault) {
+      list = list.map((p) => (p.id === 'pay-cod' || p.type === 'cod' ? { ...p, isDefault: true } : p));
+    }
+    return list;
   },
 
   /** Thêm thẻ thanh toán mới (Chỉ lưu 4 số cuối last4, bảo mật tuyệt đối) */
@@ -217,7 +242,7 @@ export const ProfileService = {
         mockPaymentsDb = mockPaymentsDb.map((p) => ({ ...p, isDefault: false }));
       }
       mockPaymentsDb = [...mockPaymentsDb, created];
-      return [...mockPaymentsDb];
+      return await this.listPaymentMethods();
     }
 
     const uid = getCurrentUid(userId);
@@ -232,7 +257,7 @@ export const ProfileService = {
 
       if (willBeDefault) {
         for (const m of methods) {
-          if (m.isDefault) {
+          if (m.isDefault && m.id !== 'pay-cod') {
             batch.set(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: false }, { merge: true });
           }
         }
@@ -253,16 +278,23 @@ export const ProfileService = {
     }
   },
 
-  /** Xoá phương thức thanh toán */
+  /** Xoá phương thức thanh toán (COD là cố định, không thể xoá) */
   async deletePaymentMethod(id: string, userId?: string): Promise<PaymentMethod[]> {
+    if (id === 'pay-cod') {
+      apiError('CANNOT_DELETE_COD', 'Phương thức thanh toán khi nhận hàng (COD) là mặc định của hệ thống, không thể xoá.');
+    }
+
     if (IS_MOCK_MODE) {
       const removing = mockPaymentsDb.find((p) => p.id === id);
       if (!removing) apiError('PAYMENT_NOT_FOUND', 'Không tìm thấy phương thức thanh toán.');
       mockPaymentsDb = mockPaymentsDb.filter((p) => p.id !== id);
-      if (removing.isDefault && mockPaymentsDb.length > 0) {
-        mockPaymentsDb = mockPaymentsDb.map((p, index) => ({ ...p, isDefault: index === 0 }));
+      const hasDefault = mockPaymentsDb.some((p) => p.isDefault);
+      if (!hasDefault && mockPaymentsDb.length > 0) {
+        mockPaymentsDb = mockPaymentsDb.map((p) =>
+          p.id === 'pay-cod' || p.type === 'cod' ? { ...p, isDefault: true } : p
+        );
       }
-      return [...mockPaymentsDb];
+      return await this.listPaymentMethods();
     }
 
     const uid = getCurrentUid(userId);
@@ -277,13 +309,45 @@ export const ProfileService = {
       batch.delete(doc(db, 'users', uid, 'paymentMethods', id));
 
       if (target.isDefault && remaining.length > 0) {
-        batch.set(doc(db, 'users', uid, 'paymentMethods', remaining[0].id), { isDefault: true }, { merge: true });
+        const nonCodRemaining = remaining.filter((p) => p.id !== 'pay-cod');
+        if (nonCodRemaining.length > 0) {
+          batch.set(doc(db, 'users', uid, 'paymentMethods', nonCodRemaining[0].id), { isDefault: true }, { merge: true });
+        }
       }
 
       await batch.commit();
       return await this.listPaymentMethods(uid);
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể xoá phương thức thanh toán.');
+    }
+  },
+
+  /** Đặt làm phương thức thanh toán mặc định duy nhất */
+  async setDefaultPaymentMethod(id: string, userId?: string): Promise<PaymentMethod[]> {
+    if (IS_MOCK_MODE) {
+      const exists = mockPaymentsDb.some((p) => p.id === id);
+      if (!exists) apiError('PAYMENT_NOT_FOUND', 'Không tìm thấy phương thức thanh toán.');
+      mockPaymentsDb = mockPaymentsDb.map((p) => ({ ...p, isDefault: p.id === id }));
+      return [...mockPaymentsDb];
+    }
+
+    const uid = getCurrentUid(userId);
+    try {
+      const methods = await this.listPaymentMethods(uid);
+      const exists = methods.some((p) => p.id === id);
+      if (!exists) apiError('PAYMENT_NOT_FOUND', 'Không tìm thấy phương thức thanh toán.');
+
+      const batch = writeBatch(db);
+      for (const m of methods) {
+        if (m.id !== 'pay-cod') {
+          batch.set(doc(db, 'users', uid, 'paymentMethods', m.id), { isDefault: m.id === id }, { merge: true });
+        }
+      }
+      await batch.commit();
+
+      return await this.listPaymentMethods(uid);
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể đặt phương thức thanh toán mặc định.');
     }
   },
 

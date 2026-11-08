@@ -1,12 +1,16 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/constants/theme';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const { favourites } = useFavourites();
   const { unreadCount } = useNotifications();
+
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
@@ -17,9 +21,9 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: 52 + bottomInset,
+          paddingBottom: bottomInset,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: 12,

@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Product } from '../types';
 import { colors, radius, spacing } from '../constants/theme';
 import { RatingStars } from './RatingStars';
-import { calcDiscountPercent } from '../utils/format';
+import { calcDiscountPercent, formatMoney } from '../utils/format';
 
 interface ProductCardProps {
   product: Product;
@@ -39,7 +39,7 @@ export function ProductCard({
         onPress={onPress}
         style={({ pressed }) => [styles.cardPressable, pressed && styles.pressed]}
         accessibilityRole="button"
-        accessibilityLabel={`${product.name}, giá ${product.price} đô`}
+        accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
       >
         <View style={styles.imageWrap}>
           <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="contain" />
@@ -63,9 +63,9 @@ export function ProductCard({
         </View>
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>${product.price}</Text>
+          <Text style={styles.price} numberOfLines={1}>{formatMoney(product.price)}</Text>
           {product.originalPrice && product.originalPrice > product.price ? (
-            <Text style={styles.oldPrice}>${product.originalPrice}</Text>
+            <Text style={styles.oldPrice} numberOfLines={1}>{formatMoney(product.originalPrice)}</Text>
           ) : null}
         </View>
       </Pressable>
@@ -171,12 +171,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 6,
+    flexWrap: 'wrap',
+    gap: 4,
   },
   price: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '800',
     color: colors.dark,
+    flexShrink: 1,
   },
   oldPrice: {
     fontSize: 11,

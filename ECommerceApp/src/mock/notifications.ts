@@ -11,7 +11,7 @@ export const MOCK_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'ntf-02', type: 'promo',
     title: 'Flash Sale 20% hôm nay ⚡',
-    message: 'Nhập mã FLASH20 giảm ngay 20% cho đơn từ $200. Số lượng có hạn!',
+    message: 'Nhập mã FLASH20 giảm ngay 20% cho đơn từ 200 ₫. Số lượng có hạn!',
     createdAt: '2026-11-03T08:00:00Z', read: false,
   },
   {
@@ -30,7 +30,7 @@ export const MOCK_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'ntf-05', type: 'promo',
     title: 'Miễn phí giao hàng cuối tuần',
-    message: 'Từ giờ đến hết Chủ nhật, áp mã FREESHIP50 cho đơn từ $50.',
+    message: 'Từ giờ đến hết Chủ nhật, áp mã FREESHIP50 cho đơn từ 50 ₫.',
     createdAt: '2026-11-01T07:30:00Z', read: false,
   },
   {
@@ -75,7 +75,7 @@ export const MOCK_NOTIFICATIONS: AppNotification[] = [
   },
   {
     id: 'ntf-12', type: 'promo',
-    title: 'Giảm $25 cho đơn từ $250',
+    title: 'Giảm 25 ₫ cho đơn từ 250 ₫',
     message: 'Mã SAVE25 đang được áp dụng toàn quốc, số lượt không hạn chế theo ngày.',
     createdAt: '2026-10-24T09:00:00Z', read: true,
   },
@@ -121,7 +121,7 @@ export const MOCK_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'ntf-19', type: 'promo',
     title: 'Voucher chào mừng đã gửi',
-    message: 'Tặng bạn mã WELCOME15 sau khi đăng ký. Áp cho đơn đầu tiên từ $50.',
+    message: 'Tặng bạn mã WELCOME15 sau khi đăng ký. Áp cho đơn đầu tiên từ 50 ₫.',
     createdAt: '2026-10-17T09:00:00Z', read: true,
   },
   {

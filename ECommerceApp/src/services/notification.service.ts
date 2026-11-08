@@ -13,6 +13,36 @@ import { MOCK_NOTIFICATIONS } from '../mock/notifications';
 
 let mockNotificationsDb: AppNotification[] = [...MOCK_NOTIFICATIONS];
 
+async function getPersistedReadIds(uid: string): Promise<Set<string>> {
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const raw = await AsyncStorage.getItem(`@read_notifs_${uid}`);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch {}
+  return new Set();
+}
+
+async function addPersistedReadId(uid: string, id: string): Promise<void> {
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const ids = await getPersistedReadIds(uid);
+    ids.add(id);
+    await AsyncStorage.setItem(`@read_notifs_${uid}`, JSON.stringify(Array.from(ids)));
+  } catch {}
+}
+
+async function addAllPersistedReadIds(uid: string, allIds: string[]): Promise<void> {
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const ids = await getPersistedReadIds(uid);
+    allIds.forEach((id) => ids.add(id));
+    await AsyncStorage.setItem(`@read_notifs_${uid}`, JSON.stringify(Array.from(ids)));
+  } catch {}
+}
+
 export interface CreateNotificationInput {
   type: NotificationType;
   title: string;
@@ -33,25 +63,36 @@ function getCurrentUid(explicitUid?: string): string {
 export const NotificationService = {
   /** Lấy danh sách toàn bộ thông báo của người dùng */
   async listNotifications(userId?: string): Promise<AppNotification[]> {
+    const uid = getCurrentUid(userId);
+    let notifs: AppNotification[] = [];
+
     if (IS_MOCK_MODE) {
-      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      notifs = [...mockNotificationsDb];
+    } else {
+      try {
+        const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
+        if (!snap.empty) {
+          notifs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }));
+        } else {
+          notifs = [...mockNotificationsDb];
+        }
+      } catch {
+        notifs = [...mockNotificationsDb];
+      }
     }
 
-    const uid = getCurrentUid(userId);
-    try {
-      const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
-      if (!snap.empty) {
-        const notifs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }));
-        return notifs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      }
-      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    } catch {
-      return [...mockNotificationsDb].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const readIds = await getPersistedReadIds(uid);
+    if (readIds.size > 0) {
+      notifs = notifs.map((n) => (readIds.has(n.id) ? { ...n, read: true } : n));
     }
+    return notifs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
   /** Đánh dấu một thông báo là đã đọc */
   async markAsRead(id: string, userId?: string): Promise<AppNotification> {
+    const uid = getCurrentUid(userId);
+    await addPersistedReadId(uid, id);
+
     if (IS_MOCK_MODE) {
       const existing = mockNotificationsDb.find((n) => n.id === id);
       if (!existing) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
@@ -60,7 +101,6 @@ export const NotificationService = {
       return updated;
     }
 
-    const uid = getCurrentUid(userId);
     try {
       const notifRef = doc(db, 'users', uid, 'notifications', id);
       await setDoc(notifRef, { read: true }, { merge: true });
@@ -88,12 +128,14 @@ export const NotificationService = {
 
   /** Đánh dấu toàn bộ thông báo của người dùng là đã đọc */
   async markAllAsRead(userId?: string): Promise<AppNotification[]> {
+    const uid = getCurrentUid(userId);
+    mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
+    await addAllPersistedReadIds(uid, mockNotificationsDb.map((n) => n.id));
+
     if (IS_MOCK_MODE) {
-      mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
       return [...mockNotificationsDb];
     }
 
-    const uid = getCurrentUid(userId);
     try {
       const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
       const batch = writeBatch(db);
@@ -105,7 +147,6 @@ export const NotificationService = {
       await batch.commit();
       return await this.listNotifications(uid);
     } catch {
-      mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
       return [...mockNotificationsDb];
     }
   },

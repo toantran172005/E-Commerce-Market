@@ -201,10 +201,10 @@ export default function FilterScreen() {
             showsVerticalScrollIndicator={false}
           >
             {/* Khoảng giá */}
-            <Text style={styles.sectionTitle}>Khoảng giá ($)</Text>
+            <Text style={styles.sectionTitle}>Khoảng giá (₫)</Text>
             <View style={styles.priceRow}>
               <View style={styles.priceInputWrap}>
-                <Text style={styles.pricePrefix}>$</Text>
+                <Text style={styles.pricePrefix}>₫</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="Tối thiểu"
@@ -217,7 +217,7 @@ export default function FilterScreen() {
               </View>
               <Text style={styles.priceDash}>—</Text>
               <View style={styles.priceInputWrap}>
-                <Text style={styles.pricePrefix}>$</Text>
+                <Text style={styles.pricePrefix}>₫</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="Tối đa"

@@ -14,6 +14,8 @@ import { CatalogService } from '../src/services/catalog.service.ts';
 import { VoucherService } from '../src/services/voucher.service.ts';
 import { OrderService } from '../src/services/order.service.ts';
 import { AuthService } from '../src/services/auth.service.ts';
+import { NotificationService } from '../src/services/notification.service.ts';
+import { ProfileService } from '../src/services/profile.service.ts';
 
 /* -------------------------------------------------------------------------- */
 /*                               CATALOG SERVICE                              */
@@ -208,4 +210,69 @@ test('OrderService: cancelOrder cancels an active order', async () => {
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(cancelled.canCancel, false);
   assert.equal(cancelled.cancelReason, 'Đổi ý không muốn mua nữa');
+});
+
+/* -------------------------------------------------------------------------- */
+/*                        PAYMENT METHOD & COD REGRESSION                     */
+/* -------------------------------------------------------------------------- */
+
+test('ProfileService: listPaymentMethods guarantees COD is present and default', async () => {
+  const methods = await ProfileService.listPaymentMethods();
+  const cod = methods.find((m) => m.id === 'pay-cod' || m.type === 'cod');
+  assert.ok(cod, 'COD must always exist in payment methods');
+  assert.equal(cod.type, 'cod');
+  assert.equal(cod.name, 'Thanh toán khi nhận hàng');
+
+  const defaultMethod = methods.find((m) => m.isDefault);
+  assert.ok(defaultMethod, 'A default payment method must exist');
+});
+
+test('ProfileService: deletePaymentMethod prevents deleting COD', async () => {
+  await assert.rejects(
+    async () => {
+      await ProfileService.deletePaymentMethod('pay-cod');
+    },
+    (err) => err?.code === 'CANNOT_DELETE_COD' || err?.message?.includes('không thể xoá'),
+  );
+});
+
+test('ProfileService: adding custom card and deleting it restores COD fallback', async () => {
+  const customCard = {
+    type: 'card',
+    name: 'Vietcombank',
+    detail: 'Vietcombank •••• 9999',
+    expiry: '12/28',
+    isDefault: true,
+    holderName: 'NGUYEN VAN B',
+  };
+
+  const listAfterAdd = await ProfileService.addPaymentMethod(customCard);
+  const added = listAfterAdd.find((m) => m.detail === 'Vietcombank •••• 9999');
+  assert.ok(added);
+  assert.equal(added.holderName, 'NGUYEN VAN B');
+  assert.equal(added.isDefault, true);
+
+  const listAfterDelete = await ProfileService.deletePaymentMethod(added.id);
+  const notFound = listAfterDelete.find((m) => m.id === added.id);
+  assert.equal(notFound, undefined);
+
+  const cod = listAfterDelete.find((m) => m.id === 'pay-cod' || m.type === 'cod');
+  assert.ok(cod);
+  assert.equal(cod.isDefault, true);
+});
+
+/* -------------------------------------------------------------------------- */
+/*                      NOTIFICATION READ STATE REGRESSION                    */
+/* -------------------------------------------------------------------------- */
+
+test('NotificationService: markAsRead and markAllAsRead update read state', async () => {
+  const notifs = await NotificationService.listNotifications();
+  assert.ok(notifs.length > 0);
+
+  const first = notifs[0];
+  const readOne = await NotificationService.markAsRead(first.id);
+  assert.equal(readOne.read, true);
+
+  const allRead = await NotificationService.markAllAsRead();
+  assert.ok(allRead.every((n) => n.read === true));
 });

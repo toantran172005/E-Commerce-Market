@@ -30,15 +30,17 @@ import {
 /*                                FORMAT TESTS                                */
 /* -------------------------------------------------------------------------- */
 
-test('formatMoney: correctly formats USD currency', () => {
-  assert.equal(formatMoney(100), '$100.00');
-  assert.equal(formatMoney(249.5), '$249.50');
-  assert.equal(formatMoney(0), '$0.00');
+test('formatMoney: correctly formats VND currency by default', () => {
+  const formatted = formatMoney(500000);
+  assert.ok(formatted.includes('500') && formatted.includes('₫'));
+  assert.equal(formatMoney(21990000), '21.990.000 ₫');
+  assert.equal(formatMoney(0), '0 ₫');
 });
 
-test('formatMoney: correctly formats VND currency', () => {
-  const formatted = formatMoney(500000, 'VND');
-  assert.ok(formatted.includes('500') && formatted.includes('₫'));
+test('formatMoney: correctly formats USD when explicitly requested', () => {
+  assert.equal(formatMoney(100, 'USD'), '$100.00');
+  assert.equal(formatMoney(249.5, 'USD'), '$249.50');
+  assert.equal(formatMoney(0, 'USD'), '$0.00');
 });
 
 test('formatDate: formats valid timestamp and ISO dates', () => {

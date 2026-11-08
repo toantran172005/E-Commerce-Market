@@ -1,11 +1,12 @@
 /* Các hàm định dạng + validate dùng chung (thuần TypeScript). */
 
-/** Định dạng tiền tệ, mặc định hiển thị $. */
-export function formatMoney(value: number, currency: 'USD' | 'VND' = 'USD'): string {
+/** Định dạng tiền tệ, mặc định hiển thị VND chuẩn Việt Nam (ví dụ 21.990.000 ₫). */
+export function formatMoney(value: number, currency: 'VND' | 'USD' = 'VND'): string {
+  const num = Number(value) || 0;
   if (currency === 'VND') {
-    return `${Math.round(value).toLocaleString('vi-VN')} ₫`;
+    return `${Math.round(num).toLocaleString('vi-VN')} ₫`;
   }
-  return `$${value.toLocaleString('en-US', {
+  return `$${num.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

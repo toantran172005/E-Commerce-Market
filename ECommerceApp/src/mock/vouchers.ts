@@ -12,7 +12,7 @@ export const MOCK_VOUCHERS: Voucher[] = [
   {
     id: 'voucher-nova10',
     code: 'NOVA10',
-    title: 'Giảm 10% cho đơn từ $100',
+    title: 'Giảm 10% cho đơn từ 100 ₫',
     type: 'percent',
     value: 10,
     minOrderValue: 100,
@@ -26,7 +26,7 @@ export const MOCK_VOUCHERS: Voucher[] = [
   {
     id: 'voucher-flash20',
     code: 'FLASH20',
-    title: 'Flash Sale giảm 20% đơn từ $200',
+    title: 'Flash Sale giảm 20% đơn từ 200 ₫',
     type: 'percent',
     value: 20,
     minOrderValue: 200,
@@ -54,7 +54,7 @@ export const MOCK_VOUCHERS: Voucher[] = [
   {
     id: 'voucher-save25',
     code: 'SAVE25',
-    title: 'Giảm $25 cho đơn từ $250',
+    title: 'Giảm 25 ₫ cho đơn từ 250 ₫',
     type: 'fixed',
     value: 25,
     minOrderValue: 250,
@@ -67,7 +67,7 @@ export const MOCK_VOUCHERS: Voucher[] = [
   {
     id: 'voucher-vip50',
     code: 'VIP50',
-    title: 'Ưu đãi VIP giảm $50 đơn từ $500',
+    title: 'Ưu đãi VIP giảm 50 ₫ đơn từ 500 ₫',
     type: 'fixed',
     value: 50,
     minOrderValue: 500,
@@ -80,7 +80,7 @@ export const MOCK_VOUCHERS: Voucher[] = [
   {
     id: 'voucher-freeship50',
     code: 'FREESHIP50',
-    title: 'Miễn phí giao hàng đơn từ $50',
+    title: 'Miễn phí giao hàng đơn từ 50 ₫',
     type: 'freeShip',
     value: 0,
     minOrderValue: 50,

@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.65 },
   listContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 20,
   },
 
   /* Item trong giỏ */
@@ -442,7 +442,8 @@ const styles = StyleSheet.create({
   productImage: { width: '100%', height: '100%' },
   itemDetails: {
     flex: 1,
-    marginLeft: spacing.md,
+    marginLeft: spacing.sm,
+    minWidth: 0,
   },
   brand: {
     fontSize: 11,
@@ -451,30 +452,35 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   itemName: {
-    marginTop: 3,
-    fontSize: 15,
+    marginTop: 2,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.dark,
     letterSpacing: -0.2,
   },
   variant: {
-    marginTop: 5,
+    marginTop: 3,
     fontSize: 11.5,
     fontWeight: '500',
     color: colors.gray,
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: spacing.sm,
   },
-  priceBlock: { justifyContent: 'flex-end' },
+  priceBlock: {
+    minWidth: 0,
+    flexShrink: 1,
+  },
   price: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.dark,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   originalPrice: {
     marginTop: 1,
@@ -486,12 +492,13 @@ const styles = StyleSheet.create({
   itemActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 6,
+    flexShrink: 0,
   },
   trashButton: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
@@ -501,21 +508,21 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
-    borderRadius: radius.md,
+    height: 32,
+    borderRadius: radius.sm,
     backgroundColor: '#F2F4F7',
     paddingHorizontal: 2,
   },
   stepperButton: {
-    width: 44,
-    height: 44,
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepperValue: {
     minWidth: 20,
     textAlign: 'center',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.dark,
   },

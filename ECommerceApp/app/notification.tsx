@@ -276,16 +276,15 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     marginBottom: spacing.md,
   },
   cardUnread: {
-    borderColor: colors.primarySoft,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
     shadowColor: colors.dark,
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -293,7 +292,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardRead: {
-    opacity: 0.9,
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+    opacity: 0.96,
   },
   iconCircle: {
     width: 44,

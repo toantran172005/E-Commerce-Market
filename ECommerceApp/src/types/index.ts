@@ -207,6 +207,8 @@ export interface PaymentMethod {
   color?: string;
   /** URL ảnh thẻ ngân hàng / ví. */
   image?: string;
+  /** Tên in trên thẻ (chủ thẻ) */
+  holderName?: string;
 }
 
 export type NotificationType = 'order' | 'promo' | 'system' | 'review';

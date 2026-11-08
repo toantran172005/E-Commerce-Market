@@ -80,9 +80,9 @@ function HomeProductCard({
         </View>
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatMoney(product.price)}</Text>
+          <Text style={styles.price} numberOfLines={1}>{formatMoney(product.price)}</Text>
           {product.originalPrice && product.originalPrice > product.price ? (
-            <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+            <Text style={styles.oldPrice} numberOfLines={1}>{formatMoney(product.originalPrice)}</Text>
           ) : null}
         </View>
       </Pressable>
@@ -150,9 +150,9 @@ function HomeProductListRow({
           </View>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatMoney(product.price)}</Text>
+            <Text style={styles.price} numberOfLines={1}>{formatMoney(product.price)}</Text>
             {product.originalPrice && product.originalPrice > product.price ? (
-              <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+              <Text style={styles.oldPrice} numberOfLines={1}>{formatMoney(product.originalPrice)}</Text>
             ) : null}
           </View>
         </View>
@@ -379,7 +379,7 @@ export default function HomeScreen() {
               </View>
               <Text
                 style={[styles.categoryLabel, active && styles.categoryLabelActive]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {cat.name}
               </Text>
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     alignItems: 'center',
-    width: 74,
+    width: 80,
   },
   categoryIconBox: {
     width: 60,
@@ -591,9 +591,11 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   categoryLabel: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: colors.dark,
+    textAlign: 'center',
+    lineHeight: 14,
   },
   categoryLabelActive: {
     color: colors.primary,
@@ -698,15 +700,17 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 6,
+    flexWrap: 'wrap',
+    gap: 4,
   },
   price: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     color: colors.dark,
+    flexShrink: 1,
   },
   oldPrice: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     color: colors.grayLight,
     textDecorationLine: 'line-through',

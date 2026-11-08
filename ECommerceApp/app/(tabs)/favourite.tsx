@@ -112,9 +112,9 @@ export default function FavouriteScreen() {
               onPress={() => handleProductPress(item.id)}
               style={styles.priceColumn}
             >
-              <Text style={styles.priceText}>{formatMoney(item.price)}</Text>
+              <Text style={styles.priceText} numberOfLines={1}>{formatMoney(item.price)}</Text>
               {item.originalPrice && item.originalPrice > item.price ? (
-                <Text style={styles.oldPriceText}>{formatMoney(item.originalPrice)}</Text>
+                <Text style={styles.oldPriceText} numberOfLines={1}>{formatMoney(item.originalPrice)}</Text>
               ) : null}
             </Pressable>
 
@@ -358,12 +358,16 @@ const styles = StyleSheet.create({
   priceColumn: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 6,
+    flexWrap: 'wrap',
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
   },
   priceText: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '800',
     color: colors.dark,
+    flexShrink: 1,
   },
   oldPriceText: {
     fontSize: 11,

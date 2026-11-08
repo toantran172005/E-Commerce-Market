@@ -148,6 +148,7 @@ export default function PaymentMethodScreen() {
   const [methodToDelete, setMethodToDelete] = useState<PaymentMethod | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedBrandKey, setSelectedBrandKey] = useState<PaymentBrandKey | null>(null);
+  const [formHolderName, setFormHolderName] = useState('');
   const [formDetail, setFormDetail] = useState('');
   const [formExpiry, setFormExpiry] = useState('');
   const [formError, setFormError] = useState('');
@@ -166,6 +167,7 @@ export default function PaymentMethodScreen() {
 
   const openAddModal = useCallback(() => {
     setSelectedBrandKey(null);
+    setFormHolderName('');
     setFormDetail('');
     setFormExpiry('');
     setFormError('');
@@ -182,9 +184,26 @@ export default function PaymentMethodScreen() {
 
     const detailRaw = formDetail.trim();
     const expiry = formExpiry.trim();
+    const holder = formHolderName.trim().toUpperCase();
+
     if (!detailRaw || !expiry) {
       setFormError('Vui lòng nhập đầy đủ thông tin.');
       return;
+    }
+    if (brand.type === 'card' && !holder) {
+      setFormError('Vui lòng nhập tên in trên thẻ.');
+      return;
+    }
+    if (brand.type === 'card') {
+      const digits = detailRaw.replace(/\D/g, '');
+      if (digits.length < 12 || digits.length > 19) {
+        setFormError('Số thẻ không hợp lệ (cần từ 12-19 chữ số).');
+        return;
+      }
+      if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+        setFormError('Hạn sử dụng thẻ phải theo định dạng MM/YY.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -196,6 +215,7 @@ export default function PaymentMethodScreen() {
         expiry,
         isDefault: false,
         color: brand.color,
+        holderName: holder || 'CHỦ THẺ',
       });
       setShowAddModal(false);
       showToast('Đã thêm phương thức thanh toán');
@@ -204,7 +224,7 @@ export default function PaymentMethodScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [addMethod, selectedBrandKey, formDetail, formExpiry, showToast]);
+  }, [addMethod, selectedBrandKey, formDetail, formExpiry, formHolderName, showToast]);
 
   const handleDeleteMethod = useCallback(
     (method: PaymentMethod) => setMethodToDelete(method),
@@ -264,56 +284,84 @@ export default function PaymentMethodScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Card preview */}
-          <View style={[styles.cardMockup, { backgroundColor: selectedBrandMeta.color }]}>
-            <View style={styles.cardOverlay} />
+          {selectedMethod?.type === 'cod' ? (
+            <View style={[styles.cardMockup, styles.cardMockupCod]}>
+              <View style={styles.cardOverlay} />
+              <View style={styles.cardDecorationOne} />
+              <View style={styles.cardDecorationTwo} />
 
-            <View style={styles.cardDecorationOne} />
-            <View style={styles.cardDecorationTwo} />
-
-            <View style={styles.cardTopRow}>
-              <View style={styles.chip}>
-                <View style={styles.chipLine} />
-                <View style={styles.chipLine} />
+              <View style={styles.cardTopRow}>
+                <View style={styles.codIconBadge}>
+                  <Ionicons name="cash" size={26} color="#10B981" />
+                </View>
+                <View style={styles.cardBrandRow}>
+                  <Text style={styles.cardBrandText}>COD</Text>
+                  <Ionicons name="shield-checkmark" size={20} color="rgba(255,255,255,0.85)" />
+                </View>
               </View>
 
-              <View style={styles.cardBrandRow}>
-                <Text style={styles.cardBrandText}>{selectedBrandMeta.shortName}</Text>
-                {selectedMethod?.type === 'cod' ? (
-                  <Ionicons name="cash-outline" size={22} color="rgba(255,255,255,0.75)" />
-                ) : (
-                  <Ionicons name="wifi-outline" size={22} color="rgba(255,255,255,0.75)" />
-                )}
-              </View>
-            </View>
+              <Text style={styles.codTitle}>THANH TOÁN KHI NHẬN HÀNG</Text>
+              <Text style={styles.codSubtitle}>
+                Trả tiền mặt trực tiếp cho nhân viên giao vận khi nhận kiện hàng tận nơi. An toàn & tiện lợi.
+              </Text>
 
-            <Text style={styles.cardNumber}>{getCardNumber(selectedMethod)}</Text>
-
-            <View style={styles.cardBottomRow}>
-              <View>
-                <Text style={styles.cardLabel}>CHỦ THẺ</Text>
-                <Text style={styles.cardValue}>{selectedMethod?.name ?? ''}</Text>
-              </View>
-              {selectedMethod?.expiry ? (
-                <View style={styles.cardExpiryBlock}>
-                  <Text style={styles.cardLabel}>HẾT HẠN</Text>
-                  <Text style={styles.cardValue}>{selectedMethod.expiry}</Text>
+              {selectedIsDefault ? (
+                <View style={styles.defaultBadge}>
+                  <Ionicons name="checkmark" size={12} color={colors.primary} />
+                  <Text style={styles.defaultBadgeText}>MẶC ĐỊNH</Text>
                 </View>
               ) : null}
             </View>
+          ) : (
+            <View style={[styles.cardMockup, { backgroundColor: selectedBrandMeta.color }]}>
+              <View style={styles.cardOverlay} />
+              <View style={styles.cardDecorationOne} />
+              <View style={styles.cardDecorationTwo} />
 
-            {selectedIsDefault ? (
-              <View style={styles.defaultBadge}>
-                <Ionicons name="checkmark" size={12} color={colors.primary} />
-                <Text style={styles.defaultBadgeText}>MẶC ĐỊNH</Text>
+              <View style={styles.cardTopRow}>
+                <View style={styles.chip}>
+                  <View style={styles.chipLine} />
+                  <View style={styles.chipLine} />
+                </View>
+
+                <View style={styles.cardBrandRow}>
+                  <Text style={styles.cardBrandText}>{selectedBrandMeta.shortName}</Text>
+                  <Ionicons name="wifi-outline" size={22} color="rgba(255,255,255,0.75)" />
+                </View>
               </View>
-            ) : null}
-          </View>
+
+              <Text style={styles.cardNumber}>{getCardNumber(selectedMethod)}</Text>
+
+              <View style={styles.cardBottomRow}>
+                <View>
+                  <Text style={styles.cardLabel}>CHỦ THẺ</Text>
+                  <Text style={styles.cardValue}>
+                    {selectedMethod?.holderName || 'NGUYEN VAN A'}
+                  </Text>
+                </View>
+                {selectedMethod?.expiry ? (
+                  <View style={styles.cardExpiryBlock}>
+                    <Text style={styles.cardLabel}>HẾT HẠN</Text>
+                    <Text style={styles.cardValue}>{selectedMethod.expiry}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {selectedIsDefault ? (
+                <View style={styles.defaultBadge}>
+                  <Ionicons name="checkmark" size={12} color={colors.primary} />
+                  <Text style={styles.defaultBadgeText}>MẶC ĐỊNH</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           <Text style={styles.sectionTitle}>PHƯƠNG THỨC ĐÃ LƯU</Text>
 
           {methods.map((method) => {
             const isSelected = selectedMethod?.id === method.id;
             const meta = getBrandMeta(method);
+            const isCod = method.id === 'pay-cod' || method.type === 'cod';
             return (
               <View key={method.id} style={[styles.optionRow, isSelected && styles.optionRowActive]}>
                 <Pressable
@@ -341,15 +389,17 @@ export default function PaymentMethodScreen() {
                   </View>
                 </Pressable>
 
-                <Pressable
-                  onPress={() => handleDeleteMethod(method)}
-                  style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Xoá ${method.name}`}
-                >
-                  <Ionicons name="trash-outline" size={16} color={colors.primary} />
-                </Pressable>
+                {!isCod ? (
+                  <Pressable
+                    onPress={() => handleDeleteMethod(method)}
+                    style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Xoá ${method.name}`}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.primary} />
+                  </Pressable>
+                ) : null}
               </View>
             );
           })}
@@ -434,6 +484,16 @@ export default function PaymentMethodScreen() {
               })}
             </View>
 
+            {selectedBrandKey && PAYMENT_BRANDS.find((b) => b.key === selectedBrandKey)?.type === 'card' ? (
+              <FormField
+                label="Tên in trên thẻ (không dấu)"
+                value={formHolderName}
+                onChangeText={(t) => setFormHolderName(t.toUpperCase())}
+                placeholder="Ví dụ: NGUYEN VAN A"
+                autoCapitalize="characters"
+              />
+            ) : null}
+
             <FormField
               label={
                 selectedBrandKey
@@ -443,6 +503,7 @@ export default function PaymentMethodScreen() {
               value={formDetail}
               onChangeText={setFormDetail}
               placeholder="Nhập số thẻ hoặc số điện thoại"
+              keyboardType="number-pad"
             />
             <FormField
               label="Hạn sử dụng (MM/YY)"
@@ -512,6 +573,33 @@ const styles = StyleSheet.create({
         elevation: 6,
       },
     }),
+  },
+  cardMockupCod: {
+    backgroundColor: '#0F172A',
+  },
+  codIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codTitle: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: 20,
+  },
+  codSubtitle: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginTop: 6,
+    maxWidth: 290,
   },
   cardOverlay: {
     ...StyleSheet.absoluteFill,
