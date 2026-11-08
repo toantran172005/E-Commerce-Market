@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 import { colors, radius, spacing } from '../src/constants/theme';
 import { useAuth } from '../src/context/AuthContext';
@@ -96,26 +97,72 @@ export default function UpdateUserScreen() {
     );
   };
 
+  const handleLaunchCamera = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập máy ảnh để chụp ảnh đại diện.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          Alert.alert('Ảnh quá lớn', 'Kích thước ảnh đại diện không được vượt quá 5MB.');
+          return;
+        }
+        setAvatarUri(asset.uri);
+        setAvatarChanged(true);
+      }
+    } catch {
+      Alert.alert('Lỗi', 'Không thể mở máy ảnh. Vui lòng thử lại.');
+    }
+  };
+
+  const handlePickFromLibrary = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện ảnh để chọn ảnh đại diện.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          Alert.alert('Ảnh quá lớn', 'Kích thước ảnh đại diện không được vượt quá 5MB.');
+          return;
+        }
+        setAvatarUri(asset.uri);
+        setAvatarChanged(true);
+      }
+    } catch {
+      Alert.alert('Lỗi', 'Không thể mở thư viện ảnh. Vui lòng thử lại.');
+    }
+  };
+
   const handleChangeAvatar = () => {
-    Alert.alert('Đổi ảnh đại diện', 'Chọn hành động', [
+    Alert.alert('Đổi ảnh đại diện', 'Chọn hình thức cập nhật ảnh (tối đa 5MB)', [
       {
         text: 'Chụp ảnh',
-        onPress: () => {
-          setAvatarUri('https://i.pravatar.cc/300?img=13');
-          setAvatarChanged(true);
-          Alert.alert('Camera', 'Camera mở thành công (demo).');
-        },
+        onPress: handleLaunchCamera,
       },
       {
         text: 'Chọn từ thư viện',
-        onPress: () => {
-          setAvatarUri('https://i.pravatar.cc/300?img=12');
-          setAvatarChanged(true);
-          Alert.alert('Thư viện', 'Ảnh đã chọn từ thư viện.');
-        },
+        onPress: handlePickFromLibrary,
       },
       {
-        text: 'Xóa ảnh',
+        text: 'Xóa ảnh đại diện',
         style: 'destructive',
         onPress: () => {
           setAvatarUri(null);
@@ -168,7 +215,7 @@ export default function UpdateUserScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch {
-      Alert.alert('Lỗi', 'Đã có lỗi xảy ra khi lưu hồ sơ.');
+      Alert.alert('Lỗi', 'Không thể lưu thông tin, vui lòng thử lại.');
     } finally {
       setSaving(false);
     }
