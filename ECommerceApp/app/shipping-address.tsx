@@ -7,6 +7,7 @@ import {
   Text,
   View,
   FlatList,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,10 @@ interface AddressForm {
   label: string;
   fullName: string;
   phone: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
   address: string;
   isDefault: boolean;
 }
@@ -40,6 +45,10 @@ interface AddressFormErrors {
   label?: string;
   fullName?: string;
   phone?: string;
+  province?: string;
+  district?: string;
+  ward?: string;
+  street?: string;
   address?: string;
 }
 
@@ -184,6 +193,10 @@ export default function ShippingAddressScreen() {
     label: 'Nhà riêng',
     fullName: user?.fullName ?? '',
     phone: user?.phoneNumber ?? '',
+    province: '',
+    district: '',
+    ward: '',
+    street: '',
     address: '',
     isDefault: false,
   });
@@ -222,8 +235,12 @@ export default function ShippingAddressScreen() {
       label: 'Nhà riêng',
       fullName: user?.fullName ?? '',
       phone: user?.phoneNumber ?? '',
+      province: '',
+      district: '',
+      ward: '',
+      street: '',
       address: '',
-      isDefault: false,
+      isDefault: addresses.length === 0,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -235,6 +252,10 @@ export default function ShippingAddressScreen() {
       label: address.label,
       fullName: address.fullName,
       phone: address.phone,
+      province: address.province ?? '',
+      district: address.district ?? '',
+      ward: address.ward ?? '',
+      street: address.street ?? address.address ?? '',
       address: address.address,
       isDefault: address.isDefault,
     });
@@ -253,9 +274,12 @@ export default function ShippingAddressScreen() {
     const errors: AddressFormErrors = {};
 
     if (!form.label.trim()) errors.label = 'Vui lòng nhập nhãn địa chỉ';
-    if (!form.fullName.trim()) errors.fullName = 'Vui lòng nhập họ tên';
-    if (!isValidPhoneVn(form.phone)) errors.phone = 'Số điện thoại không hợp lệ';
-    if (!form.address.trim()) errors.address = 'Vui lòng nhập địa chỉ cụ thể';
+    if (!form.fullName.trim()) errors.fullName = 'Vui lòng nhập họ và tên người nhận';
+    if (!isValidPhoneVn(form.phone)) errors.phone = 'Số điện thoại không hợp lệ (10 chữ số)';
+    if (!form.province.trim()) errors.province = 'Vui lòng nhập Tỉnh/Thành phố';
+    if (!form.district.trim()) errors.district = 'Vui lòng nhập Quận/Huyện';
+    if (!form.ward.trim()) errors.ward = 'Vui lòng nhập Phường/Xã';
+    if (!form.street.trim()) errors.street = 'Vui lòng nhập địa chỉ chi tiết (số nhà, tên đường)';
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -266,10 +290,31 @@ export default function ShippingAddressScreen() {
 
     setSubmitting(true);
     try {
+      const fullAddressText = [
+        form.street.trim(),
+        form.ward.trim(),
+        form.district.trim(),
+        form.province.trim(),
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      const payload = {
+        label: form.label.trim(),
+        fullName: form.fullName.trim(),
+        phone: form.phone.trim(),
+        province: form.province.trim(),
+        district: form.district.trim(),
+        ward: form.ward.trim(),
+        street: form.street.trim(),
+        address: fullAddressText,
+        isDefault: form.isDefault,
+      };
+
       if (editingAddress) {
-        await updateAddress(editingAddress.id, form);
+        await updateAddress(editingAddress.id, payload);
       } else {
-        await addAddress(form);
+        await addAddress(payload);
       }
       setModalVisible(false);
       setToastMessage('Đã lưu địa chỉ thành công!');
@@ -395,7 +440,12 @@ export default function ShippingAddressScreen() {
             title={editingAddress ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
             onBack={closeModal}
           />
-          <View style={styles.modalContent}>
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <FormField
               label="Nhãn địa chỉ"
               value={form.label}
@@ -453,15 +503,15 @@ export default function ShippingAddressScreen() {
             </View>
 
             <FormField
-              label="Họ và tên"
+              label="Họ và tên người nhận"
               value={form.fullName}
               onChangeText={(text) => setForm((prev) => ({ ...prev, fullName: text }))}
-              placeholder="Nhập họ tên"
+              placeholder="Nhập họ tên người nhận"
               error={formErrors.fullName}
               icon="person-outline"
             />
             <FormField
-              label="Số điện thoại"
+              label="Số điện thoại người nhận"
               value={form.phone}
               onChangeText={(text) => setForm((prev) => ({ ...prev, phone: text }))}
               placeholder="0901234567"
@@ -470,21 +520,47 @@ export default function ShippingAddressScreen() {
               keyboardType="phone-pad"
             />
             <FormField
-              label="Địa chỉ"
-              value={form.address}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, address: text }))}
-              placeholder="Số nhà, đường, quận, thành phố"
-              error={formErrors.address}
+              label="Tỉnh / Thành phố"
+              value={form.province}
+              onChangeText={(text) => setForm((prev) => ({ ...prev, province: text }))}
+              placeholder="Ví dụ: TP. Hồ Chí Minh, Hà Nội"
+              error={formErrors.province}
               icon="location-outline"
+            />
+            <FormField
+              label="Quận / Huyện"
+              value={form.district}
+              onChangeText={(text) => setForm((prev) => ({ ...prev, district: text }))}
+              placeholder="Ví dụ: Quận 1, Quận Bình Thạnh"
+              error={formErrors.district}
+              icon="business-outline"
+            />
+            <FormField
+              label="Phường / Xã"
+              value={form.ward}
+              onChangeText={(text) => setForm((prev) => ({ ...prev, ward: text }))}
+              placeholder="Ví dụ: Phường Bến Nghé, Phường 25"
+              error={formErrors.ward}
+              icon="map-outline"
+            />
+            <FormField
+              label="Địa chỉ chi tiết"
+              value={form.street}
+              onChangeText={(text) => setForm((prev) => ({ ...prev, street: text }))}
+              placeholder="Số nhà, tên đường, tòa nhà, ngõ/ngách"
+              error={formErrors.street}
+              icon="navigate-outline"
               multiline
             />
 
-            <PrimaryButton
-              title={editingAddress ? 'Cập nhật địa chỉ' : 'Thêm địa chỉ'}
-              onPress={handleSubmitForm}
-              loading={submitting}
-            />
-          </View>
+            <View style={{ marginTop: spacing.md, marginBottom: spacing.xl }}>
+              <PrimaryButton
+                title={editingAddress ? 'Cập nhật địa chỉ' : 'Thêm địa chỉ'}
+                onPress={handleSubmitForm}
+                loading={submitting}
+              />
+            </View>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -723,6 +799,9 @@ const styles = StyleSheet.create({
   modalSafe: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  modalScroll: {
+    flex: 1,
   },
   modalContent: {
     padding: spacing.lg,

@@ -25,6 +25,18 @@ function getCurrentUid(explicitUid?: string): string {
   return 'user_alex_carter';
 }
 
+function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  const result: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      result[k] = v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)
+        ? stripUndefined(v)
+        : v;
+    }
+  }
+  return result;
+}
+
 /**
  * Service quản lý sổ địa chỉ, phương thức thanh toán và cấu hình ứng dụng từ Cloud Firestore.
  */
@@ -86,7 +98,7 @@ export const ProfileService = {
         isDefault: willBeDefault,
       };
 
-      batch.set(newRef, newAddr);
+      batch.set(newRef, stripUndefined(newAddr));
       await batch.commit();
 
       return await this.listAddresses(uid);
@@ -107,7 +119,7 @@ export const ProfileService = {
     const uid = getCurrentUid(userId);
     try {
       const addrRef = doc(db, 'users', uid, 'addresses', id);
-      await setDoc(addrRef, patch, { merge: true });
+      await setDoc(addrRef, stripUndefined(patch), { merge: true });
       return await this.listAddresses(uid);
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể cập nhật địa chỉ.');
