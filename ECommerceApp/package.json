@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@react-navigation/native": "^7.5.0",
     "expo": "~58.0.19",
     "expo-constants": "~58.0.13",
@@ -25,6 +26,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "npx tsx --test tests/utils.test.mjs tests/services.test.mjs",
     "postinstall": "node -e \"const fs=require('fs'),f='node_modules/@expo/ws-tunnel/build/index.js';if(fs.existsSync(f)){let c=fs.readFileSync(f,'utf8');if(c.includes('new s.WebSocket(')){fs.writeFileSync(f,c.replace('new s.WebSocket(','new (s.WebSocket||s)('),'utf8')}}\""
   },
   "private": true

@@ -1,20 +1,332 @@
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Pressable,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { colors, radius, spacing } from '../../src/constants/theme';
+import { useAuth } from '../../src/context/AuthContext';
+import { PrimaryButton } from '../../src/components/Button';
+import { isValidEmail, isValidPassword } from '../../src/utils/format';
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const { login, loginAsGuest } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const showAlert = (title: string, message: string) => {
+    Alert.alert(title, message);
+  };
+
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      showAlert('Thiếu thông tin', 'Vui lòng nhập email của bạn.');
+      return;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      showAlert('Email không hợp lệ', 'Vui lòng kiểm tra lại email.');
+      return;
+    }
+    if (!password) {
+      showAlert('Thiếu thông tin', 'Vui lòng nhập mật khẩu.');
+      return;
+    }
+    if (!isValidPassword(password)) {
+      showAlert('Mật khẩu quá ngắn', 'Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await login(trimmedEmail, password);
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      showAlert('Đăng nhập thất bại', error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuest = async () => {
+    setLoading(true);
+    try {
+      await loginAsGuest();
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      showAlert('Không thể tiếp tục', error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Màn hình Đăng nhập</Text>
-    </View>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoBadge}>
+              <Ionicons name="bag-handle" size={32} color={colors.white} />
+            </View>
+            <Text style={styles.title}>Chào mừng trở lại!</Text>
+            <Text style={styles.subtitle}>
+              Đăng nhập để tiếp tục trải nghiệm mua sắm công nghệ
+            </Text>
+          </View>
+
+          {/* Form Card */}
+          <View style={styles.card}>
+            <Text style={styles.label}>Email</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={colors.placeholder}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Nhập địa chỉ email"
+                placeholderTextColor={colors.placeholder}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Email"
+              />
+            </View>
+
+            <Text style={[styles.label, styles.labelSpacing]}>Mật khẩu</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={colors.placeholder}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Nhập mật khẩu"
+                placeholderTextColor={colors.placeholder}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                accessibilityLabel="Mật khẩu"
+              />
+              <Pressable
+                onPress={() => setShowPassword((value) => !value)}
+                hitSlop={12}
+                style={styles.eyeButton}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                accessibilityState={{ disabled: loading }}
+                disabled={loading}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  size={20}
+                  color={colors.placeholder}
+                />
+              </Pressable>
+            </View>
+
+            {/* Login button */}
+            <PrimaryButton
+              title="Đăng nhập"
+              icon="arrow-forward"
+              loading={loading}
+              onPress={handleLogin}
+              style={styles.loginButton}
+            />
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <View style={styles.registerRow}>
+              <Text style={styles.registerText}>Chưa có tài khoản? </Text>
+              <Pressable
+                onPress={() => router.push('/(auth)/register')}
+                disabled={loading}
+                style={styles.registerLinkButton}
+                accessibilityRole="link"
+                accessibilityLabel="Đăng ký ngay"
+              >
+                <Text style={styles.registerLink}>Đăng ký ngay</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [styles.guestButton, pressed && styles.pressed]}
+              onPress={handleGuest}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel="Tiếp tục với tư cách Khách"
+              accessibilityState={{ disabled: loading }}
+            >
+              <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.guestText}>Tiếp tục với tư cách Khách</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 36,
+    paddingBottom: 28,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  logoBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.dark,
+    letterSpacing: -0.5,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.dark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.dark,
+    marginBottom: spacing.sm,
+    marginLeft: 2,
+  },
+  labelSpacing: {
+    marginTop: 18,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    height: 52,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.dark,
+    paddingVertical: 0,
+  },
+  eyeButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -spacing.sm,
+  },
+  loginButton: {
+    marginTop: 24,
+  },
+  footer: {
+    marginTop: 28,
     alignItems: 'center',
   },
-  text: {
-    fontSize: 18,
+  registerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  registerText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  registerLinkButton: {
+    paddingVertical: 8,
+  },
+  registerLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  guestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+  },
+  guestText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginLeft: 6,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

@@ -1,0 +1,94 @@
+{
+  "completed": {
+    "home": {
+      "name": "Màn hình Home",
+      "output": "app\\(tabs)\\home.tsx",
+      "tokens": 8817,
+      "finish_reason": "stop",
+      "lines": 725
+    },
+    "product_detail": {
+      "name": "Chi tiết sản phẩm",
+      "output": "app\\product\\[id].tsx",
+      "tokens": 6589,
+      "finish_reason": "stop",
+      "lines": 633
+    },
+    "cart": {
+      "name": "Giỏ hàng",
+      "output": "app\\cart.tsx",
+      "tokens": 7364,
+      "finish_reason": "stop",
+      "lines": 702
+    },
+    "checkout": {
+      "name": "Thanh toán & Đặt hàng",
+      "output": "app\\checkout.tsx",
+      "tokens": 14758,
+      "finish_reason": "stop",
+      "lines": 826
+    },
+    "favourite": {
+      "name": "Danh sách yêu thích",
+      "output": "app\\(tabs)\\favourite.tsx",
+      "tokens": 5423,
+      "finish_reason": "stop",
+      "lines": 425
+    },
+    "account": {
+      "name": "Tài khoản cá nhân",
+      "output": "app\\(tabs)\\account.tsx",
+      "tokens": 4791,
+      "finish_reason": "stop",
+      "lines": 428
+    },
+    "notification": {
+      "name": "Thông báo",
+      "output": "app\\notification.tsx",
+      "tokens": 8522,
+      "finish_reason": "stop",
+      "lines": 517
+    },
+    "filter": {
+      "name": "Bộ lọc sản phẩm",
+      "output": "app\\filter.tsx",
+      "tokens": 3551,
+      "finish_reason": "stop",
+      "lines": 416
+    },
+    "shipping_address": {
+      "name": "Địa chỉ giao hàng",
+      "output": "app\\shipping-address.tsx",
+      "tokens": 14067,
+      "finish_reason": "stop",
+      "lines": 562
+    },
+    "payment_method": {
+      "name": "Phương thức thanh toán",
+      "output": "app\\payment-method.tsx",
+      "tokens": 5355,
+      "finish_reason": "stop",
+      "lines": 565
+    },
+    "order_detail": {
+      "name": "Chi tiết đơn hàng",
+      "output": "app\\order\\[id].tsx",
+      "tokens": 14230,
+      "finish_reason": "stop",
+      "lines": 796
+    },
+    "help_center": {
+      "name": "Trung tâm hỗ trợ",
+      "output": "app\\help.tsx",
+      "tokens": 4762,
+      "finish_reason": "stop",
+      "lines": 300
+    }
+  },
+  "failed": {},
+  "total_tokens": {
+    "prompt": 10411,
+    "completion": 87818,
+    "total": 98229
+  }
+}

@@ -13,31 +13,49 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 1. DANH MỤC (CATEGORIES) - Tên field tiếng Anh, nội dung tiếng Việt
+// 1. DANH MỤC (CATEGORIES) - 7 danh mục công nghệ phong phú để lướt mượt mà
 const categories = [
   {
     id: 'audio',
     name: 'Âm thanh',
     icon: 'headphones',
-    productCount: 4,
+    productCount: 8,
   },
   {
     id: 'phones',
     name: 'Điện thoại',
     icon: 'smartphone',
-    productCount: 3,
+    productCount: 7,
   },
   {
     id: 'laptops',
     name: 'Laptop & Máy tính',
     icon: 'laptop',
-    productCount: 2,
+    productCount: 6,
   },
   {
     id: 'accessories',
-    name: 'Phụ kiện & Đồng hồ',
+    name: 'Phụ kiện',
     icon: 'watch',
-    productCount: 3,
+    productCount: 6,
+  },
+  {
+    id: 'watches',
+    name: 'Đồng hồ thông minh',
+    icon: 'watch-outline',
+    productCount: 5,
+  },
+  {
+    id: 'tablets',
+    name: 'Máy tính bảng',
+    icon: 'tablet-portrait-outline',
+    productCount: 5,
+  },
+  {
+    id: 'gaming',
+    name: 'Gaming & Gear',
+    icon: 'game-controller-outline',
+    productCount: 6,
   },
 ];
 
@@ -52,6 +70,112 @@ const brands = [
 
 // 3. DANH SÁCH SẢN PHẨM (PRODUCTS) - Nội dung 100% tiếng Việt
 const products = [
+  // --- ĐỒNG HỒ THÔNG MINH ---
+  {
+    id: 'prod_tempo_watch_pro',
+    name: 'Đồng hồ thông minh Tempo Watch Ultra Titan',
+    brand: 'Tempo',
+    category: 'Đồng hồ thông minh',
+    categoryId: 'watches',
+    price: 349,
+    originalPrice: 399,
+    discountPercent: 12,
+    rating: 4.9,
+    reviewCount: 420,
+    stock: 20,
+    inStock: true,
+    description: 'Vỏ titan chuẩn quân đội, màn hình sapphire siêu sáng 2000 nits, định vị GPS kép chuyên sâu cho chạy bộ và thám hiểm.',
+    colors: [{ name: 'Titan Tự Nhiên', hex: '#A8A29E' }, { name: 'Đen Titan', hex: '#1C1917' }],
+    variants: ['Bản Dây Cao Su', 'Bản Dây Dệt Trail'],
+    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=700&auto=format&fit=crop&q=80',
+    isFeatured: true,
+    isFlashSale: false,
+  },
+  {
+    id: 'prod_stratus_band',
+    name: 'Vòng đeo tay theo dõi sức khoẻ Stratus Fit 3',
+    brand: 'Stratus',
+    category: 'Đồng hồ thông minh',
+    categoryId: 'watches',
+    price: 59,
+    originalPrice: 79,
+    discountPercent: 25,
+    rating: 4.7,
+    reviewCount: 890,
+    stock: 65,
+    inStock: true,
+    description: 'Pin 14 ngày, đo SpO2 liên tục, theo dõi giấc ngủ chuẩn khoa học và kháng nước 5ATM.',
+    colors: [{ name: 'Đen Mờ', hex: '#18181B' }, { name: 'Hồng Phấn', hex: '#F472B6' }],
+    variants: ['Tiêu Chuẩn'],
+    imageUrl: 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=700&auto=format&fit=crop&q=80',
+    isFeatured: false,
+    isFlashSale: true,
+  },
+
+  // --- MÁY TÍNH BẢNG ---
+  {
+    id: 'prod_pulse_pad_pro',
+    name: 'Máy tính bảng Pulse Tab Pro 12.4 inch M2',
+    brand: 'Pulse',
+    category: 'Máy tính bảng',
+    categoryId: 'tablets',
+    price: 699,
+    originalPrice: 799,
+    discountPercent: 12,
+    rating: 4.8,
+    reviewCount: 310,
+    stock: 18,
+    inStock: true,
+    description: 'Màn hình OLED 120Hz rực rỡ, hỗ trợ bút cảm ứng độ trễ 2ms, 4 loa vòm chuẩn Dolby Atmos cho giải trí và vẽ chuyên nghiệp.',
+    colors: [{ name: 'Xám Không Gian', hex: '#374151' }, { name: 'Bạc Ánh Kim', hex: '#E5E7EB' }],
+    variants: ['128GB Wifi', '256GB 5G'],
+    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=700&auto=format&fit=crop&q=80',
+    isFeatured: true,
+    isFlashSale: false,
+  },
+
+  // --- GAMING & GEAR ---
+  {
+    id: 'prod_vortex_keyboard_rgb',
+    name: 'Bàn phím cơ không dây Gaming Vortex Strike RGB',
+    brand: 'Vortex',
+    category: 'Gaming & Gear',
+    categoryId: 'gaming',
+    price: 119,
+    originalPrice: 149,
+    discountPercent: 20,
+    rating: 4.8,
+    reviewCount: 540,
+    stock: 35,
+    inStock: true,
+    description: 'Switch quang học siêu nhạy, hot-swap 5-pin, kết nối 3 chế độ (Bluetooth / 2.4GHz / Type-C) và LED RGB từng phím.',
+    colors: [{ name: 'Trắng RGB', hex: '#FFFFFF' }, { name: 'Đen Stealth', hex: '#111827' }],
+    variants: ['Red Switch Êm Ái', 'Blue Switch Clicky'],
+    imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=700&auto=format&fit=crop&q=80',
+    isFeatured: true,
+    isFlashSale: true,
+  },
+  {
+    id: 'prod_vortex_mouse_pro',
+    name: 'Chuột gaming siêu nhẹ Vortex Air Wireless 49g',
+    brand: 'Vortex',
+    category: 'Gaming & Gear',
+    categoryId: 'gaming',
+    price: 79,
+    originalPrice: 99,
+    discountPercent: 20,
+    rating: 4.9,
+    reviewCount: 390,
+    stock: 40,
+    inStock: true,
+    description: 'Trọng lượng siêu nhẹ chỉ 49g, cảm biến 26.000 DPI cao cấp, pin 80 giờ liên tục cho trải nghiệm FPS đỉnh chóp.',
+    colors: [{ name: 'Trắng Tuyết', hex: '#F9FAFB' }, { name: 'Đen Nhám', hex: '#000000' }],
+    variants: ['Tiêu Chuẩn'],
+    imageUrl: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=700&auto=format&fit=crop&q=80',
+    isFeatured: false,
+    isFlashSale: false,
+  },
+
   // --- ÂM THANH ---
   {
     id: 'prod_aurabeats_pro',
@@ -345,7 +469,6 @@ const users = [
     phoneNumber: '+84 901 284 920',
     membershipBadge: 'THÀNH VIÊN PRO',
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-    role: 'customer',
     orderCount: 1,
     wishlistCount: 1,
     shippingAddresses: [
@@ -366,20 +489,6 @@ const users = [
         fullAddress: 'Tòa nhà Bitexco, Tầng 12, Số 2 Hải Triều, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
       },
     ],
-    paymentMethods: [
-      {
-        id: 'pay_visa_4290',
-        type: 'Thẻ Visa',
-        isDefault: true,
-        last4: '4290',
-      },
-      {
-        id: 'pay_momo',
-        type: 'Ví MoMo',
-        isDefault: false,
-        accountName: 'alex.carter@novatech',
-      },
-    ],
     notifications: {
       orderUpdates: true,
       promotionsOffers: true,
@@ -395,7 +504,6 @@ const users = [
     phoneNumber: '+84 901 234 567',
     membershipBadge: 'THÀNH VIÊN PRO',
     avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80',
-    role: 'customer',
     orderCount: 2,
     wishlistCount: 3,
     shippingAddresses: [
@@ -406,14 +514,6 @@ const users = [
         recipientName: 'Trần Văn Toàn',
         phoneNumber: '+84 901 234 567',
         fullAddress: 'Số 12 Nguyễn Văn Bảo, Phường 4, Quận Gò Vấp, TP. Hồ Chí Minh',
-      },
-    ],
-    paymentMethods: [
-      {
-        id: 'pay_toan_visa',
-        type: 'Thẻ Visa',
-        isDefault: true,
-        last4: '8834',
       },
     ],
     notifications: {
@@ -431,7 +531,6 @@ const users = [
     phoneNumber: '+84 912 345 678',
     membershipBadge: 'THÀNH VIÊN VÀNG',
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-    role: 'customer',
     orderCount: 0,
     wishlistCount: 2,
     shippingAddresses: [
@@ -444,7 +543,6 @@ const users = [
         fullAddress: 'Số 88 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
       },
     ],
-    paymentMethods: [],
     notifications: {
       orderUpdates: true,
       promotionsOffers: false,
@@ -452,26 +550,6 @@ const users = [
       reviewReminders: false,
     },
     favouriteProductIds: ['prod_tempo_watch'],
-  },
-  {
-    id: 'user_admin',
-    fullName: 'Quản Trị Viên Hệ Thống',
-    email: 'admin@novatech.io',
-    phoneNumber: '+84 900 001 111',
-    membershipBadge: 'QUẢN TRỊ VIÊN',
-    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=80',
-    role: 'admin',
-    orderCount: 0,
-    wishlistCount: 0,
-    shippingAddresses: [],
-    paymentMethods: [],
-    notifications: {
-      orderUpdates: true,
-      promotionsOffers: true,
-      newArrivals: true,
-      reviewReminders: true,
-    },
-    favouriteProductIds: [],
   },
 ];
 
@@ -626,7 +704,7 @@ async function seedFinalVietnameseDatabase() {
   }
 
   // 4. Users
-  console.log('\n👤 4. Nạp Users (Trần Minh Alex, Trần Văn Toàn, Nguyễn Thu Phương, Quản trị viên)...');
+  console.log('\n👤 4. Nạp Users (Trần Minh Alex, Trần Văn Toàn, Nguyễn Thu Phương)...');
   for (const u of users) {
     await setDoc(doc(db, 'users', u.id), u);
     console.log(`   + Người dùng: ${u.fullName} (${u.email}) - ${u.membershipBadge}`);

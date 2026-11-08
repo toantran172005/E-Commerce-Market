@@ -1,0 +1,3006 @@
+=== FILE: app/(tabs)/home.tsx ===
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  FlatList,
+  Image,
+  Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { colors, radius, spacing } from '../../src/constants/theme';
+import { MOCK_CATEGORIES } from '../../src/mock/categories';
+import { useProductSearch } from '../../src/hooks/useProductSearch';
+import { useProductFilter } from '../../src/context/ProductFilterContext';
+import { useCart } from '../../src/context/CartContext';
+import { useFavourites } from '../../src/context/FavouritesContext';
+import { useNotifications } from '../../src/context/NotificationsContext';
+import { useAuth } from '../../src/context/AuthContext';
+import { Product } from '../../src/types';
+import { formatMoney, calcDiscountPercent } from '../../src/utils/format';
+import { RatingStars } from '../../src/components/RatingStars';
+import { LoadingView } from '../../src/components/LoadingView';
+import { ErrorView } from '../../src/components/ErrorView';
+import { EmptyState } from '../../src/components/EmptyState';
+
+const { width } = Dimensions.get('window');
+const H_PADDING = spacing.xl; // 20
+const CARD_GAP = spacing.md;   // 12
+const CARD_WIDTH = (width - H_PADDING * 2 - CARD_GAP) / 2;
+
+interface HomeProductCardProps {
+  product: Product;
+  width?: number;
+  isFavourite: boolean;
+  onToggleFavourite: () => void;
+  onPress: () => void;
+}
+
+function HomeProductCard({
+  product,
+  width,
+  isFavourite,
+  onToggleFavourite,
+  onPress,
+}: HomeProductCardProps) {
+  const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, width ? { width } : null, pressed && styles.pressedCard]}
+      accessibilityRole="button"
+      accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
+    >
+      <View style={styles.cardImageWrap}>
+        <Image source={{ uri: product.imageUrl }} style={styles.cardImage} resizeMode="contain" />
+
+        {discountPercent != null ? (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountText}>-{discountPercent}%</Text>
+          </View>
+        ) : product.badge === 'new' ? (
+          <View style={[styles.discountBadge, styles.newBadge]}>
+            <Text style={styles.discountText}>NEW</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={onToggleFavourite}
+          hitSlop={8}
+          style={styles.heartButton}
+          accessibilityRole="button"
+          accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+        >
+          <Ionicons
+            name={isFavourite ? 'heart' : 'heart-outline'}
+            size={16}
+            color={isFavourite ? colors.primary : colors.gray}
+          />
+        </Pressable>
+      </View>
+
+      <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
+
+      <View style={styles.ratingRow}>
+        <RatingStars rating={product.rating ?? 0} size={11} />
+        <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
+      </View>
+
+      <View style={styles.priceRow}>
+        <Text style={styles.price}>{formatMoney(product.price)}</Text>
+        {product.originalPrice && product.originalPrice > product.price ? (
+          <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+interface HomeProductListRowProps {
+  product: Product;
+  isFavourite: boolean;
+  onToggleFavourite: () => void;
+  onPress: () => void;
+}
+
+function HomeProductListRow({
+  product,
+  isFavourite,
+  onToggleFavourite,
+  onPress,
+}: HomeProductListRowProps) {
+  const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.listCard, pressed && styles.pressedCard]}
+      accessibilityRole="button"
+      accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
+    >
+      <View style={styles.listImageWrap}>
+        <Image source={{ uri: product.imageUrl }} style={styles.listImage} resizeMode="contain" />
+
+        {discountPercent != null ? (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountText}>-{discountPercent}%</Text>
+          </View>
+        ) : product.badge === 'new' ? (
+          <View style={[styles.discountBadge, styles.newBadge]}>
+            <Text style={styles.discountText}>NEW</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.listInfo}>
+        <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
+
+        <View style={styles.ratingRow}>
+          <RatingStars rating={product.rating ?? 0} size={11} />
+          <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
+        </View>
+
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{formatMoney(product.price)}</Text>
+          {product.originalPrice && product.originalPrice > product.price ? (
+            <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+          ) : null}
+        </View>
+      </View>
+
+      <Pressable
+        onPress={onToggleFavourite}
+        hitSlop={8}
+        style={styles.listHeartButton}
+        accessibilityRole="button"
+        accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+      >
+        <Ionicons
+          name={isFavourite ? 'heart' : 'heart-outline'}
+          size={18}
+          color={isFavourite ? colors.primary : colors.gray}
+        />
+      </Pressable>
+    </Pressable>
+  );
+}
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const cart = useCart();
+  const notifications = useNotifications();
+  const { favourites, isFavourite, toggleFavourite } = useFavourites();
+  const { filters, setQuery, setCategoryIds, resetFilters } = useProductFilter();
+  const { products, loading, error, refresh } = useProductSearch();
+
+  const [isGrid, setIsGrid] = useState(true);
+
+  const homeCategories = useMemo(() => MOCK_CATEGORIES.slice(0, 4), []);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Chào buổi sáng';
+    if (hour < 18) return 'Chào buổi chiều';
+    return 'Chào buổi tối';
+  }, []);
+
+  const displayName = useMemo(() => {
+    if (!user) return 'Khách';
+    if (user.isGuest) return 'Khách';
+    return user.fullName?.split(' ').pop() ?? 'Bạn';
+  }, [user]);
+
+  const goToProduct = useCallback(
+    (id: string) => {
+      router.push({ pathname: '/product/[id]', params: { id } });
+    },
+    [router],
+  );
+
+  const handleToggleFavourite = useCallback(
+    (product: Product) => {
+      toggleFavourite(product);
+    },
+    [toggleFavourite],
+  );
+
+  const handleSelectCategory = useCallback(
+    (categoryId: string) => {
+      setCategoryIds((prev) => (prev.includes(categoryId) ? [] : [categoryId]));
+    },
+    [setCategoryIds],
+  );
+
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setQuery(text);
+    },
+    [setQuery],
+  );
+
+  const handleRetry = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
+  const renderProduct = useCallback(
+    ({ item }: { item: Product }) => {
+      const favourite = isFavourite(item.id);
+      const onPress = () => goToProduct(item.id);
+      const onToggle = () => handleToggleFavourite(item);
+
+      if (isGrid) {
+        return (
+          <HomeProductCard
+            product={item}
+            width={CARD_WIDTH}
+            isFavourite={favourite}
+            onToggleFavourite={onToggle}
+            onPress={onPress}
+          />
+        );
+      }
+
+      return (
+        <HomeProductListRow
+          product={item}
+          isFavourite={favourite}
+          onToggleFavourite={onToggle}
+          onPress={onPress}
+        />
+      );
+    },
+    [isGrid, isFavourite, handleToggleFavourite, goToProduct],
+  );
+
+  const listEmptyComponent = useMemo(() => {
+    if (loading) {
+      return <LoadingView label="Đang tải sản phẩm..." />;
+    }
+    if (error) {
+      return <ErrorView message={error.message} onRetry={handleRetry} />;
+    }
+    return (
+      <EmptyState
+        icon="search-outline"
+        title="Không tìm thấy sản phẩm"
+        subtitle="Thử thay đổi từ khoá hoặc bộ lọc."
+        actionLabel="Xoá bộ lọc"
+        onAction={resetFilters}
+      />
+    );
+  }, [loading, error, handleRetry, resetFilters]);
+
+  const header = (
+    <View>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.greeting}>{greeting}</Text>
+          <Text style={styles.title}>Hey, {displayName}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push('/notification')}
+            style={({ pressed }) => [styles.bellButton, pressed && styles.pressedIcon]}
+            accessibilityRole="button"
+            accessibilityLabel="Thông báo"
+          >
+            <Ionicons name="notifications-outline" size={22} color={colors.dark} />
+            {notifications.unreadCount > 0 ? <View style={styles.badgeDot} /> : null}
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/cart')}
+            style={({ pressed }) => [styles.cartButton, pressed && styles.pressedIcon]}
+            accessibilityRole="button"
+            accessibilityLabel="Giỏ hàng"
+          >
+            <Ionicons name="cart-outline" size={20} color={colors.white} />
+            {cart.totalItems > 0 ? (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {cart.totalItems > 99 ? '99+' : cart.totalItems}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Search + Filter */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={20} color={colors.placeholder} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Tìm kiếm tai nghe, điện thoại, laptop..."
+            placeholderTextColor={colors.placeholder}
+            returnKeyType="search"
+            value={filters.query}
+            onChangeText={handleSearchChange}
+            accessibilityLabel="Tìm kiếm sản phẩm"
+          />
+        </View>
+        <Pressable
+          onPress={() => router.push('/filter')}
+          style={({ pressed }) => [styles.filterButton, pressed && styles.pressedIcon]}
+          accessibilityRole="button"
+          accessibilityLabel="Bộ lọc sản phẩm"
+        >
+          <Ionicons name="options-outline" size={22} color={colors.white} />
+        </Pressable>
+      </View>
+
+      {/* Categories */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Danh mục sản phẩm</Text>
+      </View>
+      <View style={styles.categoriesRow}>
+        {homeCategories.map((cat) => {
+          const active = filters.categoryIds.includes(cat.id);
+          return (
+            <Pressable
+              key={cat.id}
+              onPress={() => handleSelectCategory(cat.id)}
+              style={styles.categoryItem}
+              accessibilityRole="button"
+              accessibilityLabel={cat.name}
+              accessibilityState={{ selected: active }}
+            >
+              <View style={[styles.categoryIconBox, active && styles.categoryIconBoxActive]}>
+                <Ionicons name={cat.icon} size={22} color={colors.primary} />
+              </View>
+              <Text style={[styles.categoryLabel, active && styles.categoryLabelActive]} numberOfLines={1}>
+                {cat.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Products header */}
+      <View style={styles.productsHeader}>
+        <Text style={styles.sectionTitle}>Sản phẩm</Text>
+        <View style={styles.productsHeaderRight}>
+          <Text style={styles.sectionMeta}>
+            {loading ? 'Đang tải...' : `${products.length} sản phẩm`}
+          </Text>
+          <Pressable
+            onPress={() => setIsGrid((prev) => !prev)}
+            style={({ pressed }) => [styles.viewToggle, pressed && styles.pressedIcon]}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={isGrid ? 'Chuyển sang chế độ danh sách' : 'Chuyển sang chế độ lưới'}
+          >
+            <Ionicons
+              name={isGrid ? 'list-outline' : 'grid-outline'}
+              size={18}
+              color={colors.dark}
+            />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <FlatList
+        key={isGrid ? 'grid' : 'list'}
+        data={products}
+        keyExtractor={(item) => item.id}
+        renderItem={renderProduct}
+        ListHeaderComponent={header}
+        ListEmptyComponent={listEmptyComponent}
+        numColumns={isGrid ? 2 : 1}
+        columnWrapperStyle={isGrid ? styles.gridRow : undefined}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        extraData={[favourites, isGrid, cart.totalItems, notifications.unreadCount]}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  listContent: {
+    paddingHorizontal: H_PADDING,
+    paddingTop: spacing.xs,
+    paddingBottom: 120,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
+  greeting: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '500',
+    marginBottom: spacing.xs,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.dark,
+    letterSpacing: -0.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bellButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 10,
+    right: 11,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  cartButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.background,
+  },
+  cartBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  searchBox: {
+    flex: 1,
+    height: 52,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: spacing.sm,
+    fontSize: 14,
+    color: colors.dark,
+    paddingVertical: 0,
+  },
+  filterButton: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.lg,
+    backgroundColor: colors.dark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.md,
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.dark,
+    letterSpacing: -0.3,
+  },
+  sectionMeta: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  categoriesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    width: (width - H_PADDING * 2 - 24) / 4,
+  },
+  categoryIconBox: {
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  categoryIconBoxActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  categoryLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.dark,
+  },
+  categoryLabelActive: {
+    color: colors.primary,
+  },
+  productsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  productsHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  viewToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    marginBottom: CARD_GAP,
+  },
+  pressedCard: {
+    opacity: 0.9,
+  },
+  cardImageWrap: {
+    height: 124,
+    borderRadius: radius.lg,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  newBadge: {
+    backgroundColor: colors.info,
+  },
+  discountText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  heartButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  cardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.dark,
+    marginBottom: spacing.xs,
+    minHeight: 36,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  reviewCount: {
+    marginLeft: 4,
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  price: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.dark,
+  },
+  oldPrice: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.grayLight,
+    textDecorationLine: 'line-through',
+  },
+  listCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    marginBottom: CARD_GAP,
+  },
+  listImageWrap: {
+    width: 92,
+    height: 92,
+    borderRadius: radius.lg,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+    marginRight: spacing.md,
+  },
+  listImage: {
+    width: '100%',
+    height: '100%',
+  },
+  listInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  listHeartButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  pressedIcon: {
+    opacity: 0.7,
+  },
+});
+
+=== END FILE ===
+
+=== FILE: app/notification.tsx ===
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  FlatList,
+  ListRenderItem,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { ScreenHeader, PrimaryButton, LoadingView, EmptyState } from '../src/components';
+import { useNotifications } from '../src/context/NotificationsContext';
+import { colors, radius, spacing } from '../src/constants/theme';
+import { AppNotification, NotificationType, IoniconName } from '../src/types';
+import { formatDate } from '../src/utils/format';
+
+/* -------------------------------------------------------------------------- */
+/*                              Local UI helpers                              */
+/* -------------------------------------------------------------------------- */
+
+/** Đổi createdAt ISO thành chuỗi thời gian tương đối tiếng Việt. */
+function formatRelativeTime(value: string | number): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const diffMinutes = Math.round((Date.now() - date.getTime()) / 60000);
+  if (diffMinutes < 1) return 'Vừa xong';
+  if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} ngày trước`;
+
+  return formatDate(value);
+}
+
+/** Cấu hình icon + màu theo từng loại thông báo. */
+const NOTIFICATION_META: Record<NotificationType, { icon: IoniconName; color: string; bg: string }> = {
+  order: { icon: 'cube-outline', color: colors.primary, bg: colors.primarySoft },
+  promo: { icon: 'pricetag-outline', color: colors.success, bg: colors.successSoft },
+  system: { icon: 'shield-checkmark-outline', color: colors.info, bg: colors.infoSoft },
+  review: { icon: 'star-outline', color: colors.warning, bg: colors.warningSoft },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                                   Screen                                   */
+/* -------------------------------------------------------------------------- */
+
+export default function NotificationScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    loadNotifications,
+  } = useNotifications();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null);
+
+  const handleGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/home');
+    }
+  }, [router]);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    if (unreadCount === 0) return;
+    markAllAsRead().catch(() => undefined);
+  }, [unreadCount, markAllAsRead]);
+
+  const handlePressNotification = useCallback(
+    (item: AppNotification) => {
+      // Đánh dấu đã đọc, sau đó mở modal chi tiết.
+      if (!item.read) {
+        markAsRead(item.id).catch(() => undefined);
+      }
+      setSelectedNotification(item);
+    },
+    [markAsRead],
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadNotifications();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadNotifications]);
+
+  const renderItem: ListRenderItem<AppNotification> = useCallback(
+    ({ item }) => {
+      const meta = NOTIFICATION_META[item.type];
+
+      return (
+        <Pressable
+          onPress={() => handlePressNotification(item)}
+          style={({ pressed }) => [
+            styles.card,
+            item.read ? styles.cardRead : styles.cardUnread,
+            pressed && styles.pressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${item.read ? 'đã đọc' : 'chưa đọc'}`}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: meta.bg }]}>
+            <Ionicons name={meta.icon} size={21} color={meta.color} />
+          </View>
+
+          <View style={styles.cardContent}>
+            <View style={styles.cardTopRow}>
+              <Text
+                numberOfLines={1}
+                style={[styles.cardTitle, item.read && styles.cardTitleRead]}
+              >
+                {item.title}
+              </Text>
+              {!item.read ? <View style={styles.unreadDot} /> : null}
+            </View>
+
+            <Text numberOfLines={2} style={styles.cardMessage}>
+              {item.message}
+            </Text>
+
+            <View style={styles.cardFooter}>
+              <Ionicons name="time-outline" size={12} color={colors.textMuted} />
+              <Text style={styles.timeText}>{formatRelativeTime(item.createdAt)}</Text>
+            </View>
+          </View>
+        </Pressable>
+      );
+    },
+    [handlePressNotification],
+  );
+
+  const markAllButton = (
+    <Pressable
+      onPress={handleMarkAllAsRead}
+      disabled={unreadCount === 0}
+      style={({ pressed }) => [
+        styles.markAllButton,
+        pressed && styles.pressed,
+      ]}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Đánh dấu tất cả đã đọc"
+      accessibilityState={{ disabled: unreadCount === 0 }}
+    >
+      <Text
+        style={[
+          styles.markAllText,
+          unreadCount === 0 && styles.markAllTextDisabled,
+        ]}
+      >
+        Đánh dấu đã đọc
+      </Text>
+    </Pressable>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <ScreenHeader title="Thông báo" onBack={handleGoBack} right={markAllButton} />
+
+      {/* Nội dung chính: loading -> list -> empty */}
+      {loading ? (
+        <LoadingView label="Đang tải thông báo..." />
+      ) : notifications.length === 0 ? (
+        <EmptyState
+          icon="notifications-off-outline"
+          title="Chưa có thông báo"
+          subtitle="Khi có sự kiện mới, thông báo sẽ hiển thị tại đây."
+          actionLabel="Khám phá sản phẩm"
+          onAction={() => router.push('/(tabs)/home')}
+        />
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+        />
+      )}
+
+      {/* Modal chi tiết thông báo */}
+      <Modal
+        visible={selectedNotification !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedNotification(null)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedNotification(null)} />
+          <View style={styles.modalCard}>
+            {selectedNotification && (
+              <>
+                <View
+                  style={[
+                    styles.modalIcon,
+                    { backgroundColor: NOTIFICATION_META[selectedNotification.type].bg },
+                  ]}
+                >
+                  <Ionicons
+                    name={NOTIFICATION_META[selectedNotification.type].icon}
+                    size={32}
+                    color={NOTIFICATION_META[selectedNotification.type].color}
+                  />
+                </View>
+                <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
+                <Text style={styles.modalTime}>{formatDate(selectedNotification.createdAt)}</Text>
+                <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
+                <PrimaryButton
+                  title="Đã hiểu"
+                  onPress={() => setSelectedNotification(null)}
+                />
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Footer Xong */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        <PrimaryButton title="Xong" onPress={handleGoBack} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 Stylesheet                                 */
+/* -------------------------------------------------------------------------- */
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  /* Nút "Đánh dấu đã đọc" trên header */
+  markAllButton: {
+    minHeight: 44,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  markAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  markAllTextDisabled: {
+    color: colors.textMuted,
+  },
+
+  /* Danh sách thông báo */
+  listContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    flexGrow: 1,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+  },
+  cardUnread: {
+    borderColor: colors.primarySoft,
+    shadowColor: colors.dark,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  cardRead: {
+    opacity: 0.9,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardContent: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    color: colors.dark,
+  },
+  cardTitleRead: {
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  unreadDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginLeft: spacing.sm,
+    backgroundColor: colors.primary,
+  },
+  cardMessage: {
+    marginTop: spacing.xs,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  timeText: {
+    marginLeft: spacing.xs,
+    fontSize: 11.5,
+    fontWeight: '500',
+    color: colors.textMuted,
+  },
+
+  /* Footer bo tròn */
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    overflow: 'hidden',
+  },
+
+  /* Modal chi tiết */
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.overlay,
+    padding: spacing.xl,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  modalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.dark,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  modalTime: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: spacing.md,
+  },
+  modalMessage: {
+    fontSize: 14.5,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+
+  pressed: {
+    opacity: 0.8,
+  },
+});
+
+=== END FILE ===
+
+=== FILE: app/(tabs)/account.tsx ===
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { colors, radius, spacing } from '../../src/constants/theme';
+import { ListItemRow } from '../../src/components/ListItemRow';
+import { LoadingView } from '../../src/components/LoadingView';
+import { useAuth } from '../../src/context/AuthContext';
+import { useCart } from '../../src/context/CartContext';
+import { useOrders } from '../../src/context/OrdersContext';
+import { useAddresses } from '../../src/context/AddressesContext';
+import { usePaymentMethods } from '../../src/context/PaymentMethodsContext';
+import { useNotifications } from '../../src/context/NotificationsContext';
+
+type IoniconName = keyof typeof Ionicons.glyphMap;
+
+interface MenuItem {
+  id: string;
+  icon: IoniconName;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+}
+
+const CARD_SHADOW = {
+  shadowColor: colors.dark,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  elevation: 2,
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxl + spacing.lg,
+  },
+  header: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.dark,
+    letterSpacing: -0.4,
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...CARD_SHADOW,
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  profileEmail: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  proBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    marginTop: spacing.xs,
+  },
+  proBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 0.6,
+  },
+  editButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    minHeight: 64,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...CARD_SHADOW,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.dark,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: colors.textMuted,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    ...CARD_SHADOW,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    backgroundColor: colors.dangerSoft,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    marginTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  logoutButtonDisabled: {
+    opacity: 0.6,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.danger,
+  },
+  versionText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: colors.grayLight,
+    marginTop: spacing.md,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+});
+
+interface MenuSectionProps {
+  items: MenuItem[];
+}
+
+function MenuSection({ items }: MenuSectionProps) {
+  return (
+    <View style={styles.card}>
+      {items.map((item, index) => (
+        <View key={item.id}>
+          <ListItemRow
+            icon={item.icon}
+            title={item.title}
+            subtitle={item.subtitle}
+            showChevron
+            onPress={item.onPress}
+          />
+          {index < items.length - 1 ? <View style={styles.divider} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export default function AccountScreen() {
+  const router = useRouter();
+  const { user, isLoading: authLoading, logout } = useAuth();
+  const { totalItems } = useCart();
+  const { orders, loading: ordersLoading, error: ordersError } = useOrders();
+  const { addresses, defaultAddress, loading: addressesLoading } = useAddresses();
+  const { methods, defaultMethod, loading: paymentsLoading } = usePaymentMethods();
+  const { unreadCount, loading: notificationsLoading } = useNotifications();
+
+  const [loggingOut, setLoggingOut] = useState(false);
+  const loggingOutRef = useRef(false);
+
+  const handleLogout = useCallback(async () => {
+    if (loggingOutRef.current) return;
+
+    loggingOutRef.current = true;
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } finally {
+      loggingOutRef.current = false;
+      setLoggingOut(false);
+    }
+  }, [logout, router]);
+
+  if (authLoading) {
+    return <LoadingView label="Đang tải hồ sơ..." />;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const userName = user.fullName || user.displayName || 'Khách hàng';
+  const userEmail = user.email || 'Chưa có email';
+  const isPro = !user.isGuest;
+
+  const processingCount = useMemo(
+    () => orders.filter((order) => order.status === 'processing').length,
+    [orders],
+  );
+
+  const orderSubtitle = ordersLoading
+    ? 'Đang tải đơn hàng...'
+    : ordersError
+      ? `Lỗi: ${ordersError}`
+      : processingCount > 0
+        ? `${processingCount} đơn hàng đang xử lý`
+        : 'Chưa có đơn hàng';
+
+  const cartSubtitle = `${totalItems} món đồ trong giỏ`;
+
+  const addressSubtitle = addressesLoading
+    ? 'Đang tải địa chỉ...'
+    : addresses.length === 0
+      ? 'Chưa có địa chỉ nhận hàng'
+      : `${addresses.length} địa chỉ đã lưu · ${defaultAddress?.label ?? 'Chưa có mặc định'}`;
+
+  const paymentSubtitle = paymentsLoading
+    ? 'Đang tải phương thức...'
+    : methods.length === 0
+      ? 'Chưa có phương thức thanh toán'
+      : defaultMethod
+        ? `${defaultMethod.name} · ${defaultMethod.detail}`
+        : `${methods.length} phương thức thanh toán`;
+
+  const notificationSubtitle = notificationsLoading
+    ? 'Đang tải thông báo...'
+    : unreadCount > 0
+      ? `${unreadCount} thông báo chưa đọc`
+      : 'Không có thông báo mới';
+
+  const orderItems: MenuItem[] = [
+    {
+      id: 'my-orders',
+      icon: 'cube-outline',
+      title: 'Đơn hàng của tôi',
+      subtitle: orderSubtitle,
+      onPress: () => router.push('/orders'),
+    },
+    {
+      id: 'my-cart',
+      icon: 'cart-outline',
+      title: 'Giỏ hàng của tôi',
+      subtitle: cartSubtitle,
+      onPress: () => router.push('/cart'),
+    },
+  ];
+
+  const accountItems: MenuItem[] = [
+    {
+      id: 'shipping-address',
+      icon: 'location-outline',
+      title: 'Địa chỉ nhận hàng',
+      subtitle: addressSubtitle,
+      onPress: () => router.push('/shipping-address'),
+    },
+    {
+      id: 'payment-methods',
+      icon: 'card-outline',
+      title: 'Phương thức thanh toán',
+      subtitle: paymentSubtitle,
+      onPress: () => router.push('/payment-method'),
+    },
+    {
+      id: 'notifications',
+      icon: 'notifications-outline',
+      title: 'Thông báo',
+      subtitle: notificationSubtitle,
+      onPress: () => router.push('/notification'),
+    },
+    {
+      id: 'app-settings',
+      icon: 'settings-outline',
+      title: 'Cài đặt ứng dụng',
+      subtitle: 'Giao diện, ngôn ngữ, bảo mật',
+      onPress: () => router.push('/app-settings'),
+    },
+  ];
+
+  const supportItems: MenuItem[] = [
+    {
+      id: 'help-center',
+      icon: 'help-buoy-outline',
+      title: 'Trung tâm hỗ trợ',
+      subtitle: 'Câu hỏi thường gặp & Hỗ trợ 24/7',
+      onPress: () => router.push('/help'),
+    },
+  ];
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Tài khoản</Text>
+        </View>
+
+        <View style={styles.profileCard}>
+          <View style={styles.avatar} accessibilityLabel="Ảnh đại diện">
+            <Ionicons name="person" size={30} color={colors.white} />
+          </View>
+
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{userName}</Text>
+            <Text style={styles.profileEmail}>{userEmail}</Text>
+
+            {isPro ? (
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>THÀNH VIÊN PRO</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Pressable
+            onPress={() => router.push('/update-user')}
+            style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Chỉnh sửa hồ sơ"
+          >
+            <Ionicons name="pencil" size={18} color={colors.white} />
+          </Pressable>
+        </View>
+
+        <View style={styles.statsRow}>
+          <Pressable
+            onPress={() => router.push('/orders')}
+            style={({ pressed }) => [styles.statCard, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`${orders.length} đơn hàng`}
+          >
+            <Text style={styles.statValue}>{orders.length}</Text>
+            <Text style={styles.statLabel}>Đơn hàng</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.sectionTitle}>ĐƠN HÀNG & MUA SẮM</Text>
+        <MenuSection items={orderItems} />
+
+        <Text style={styles.sectionTitle}>CÀI ĐẶT TÀI KHOẢN</Text>
+        <MenuSection items={accountItems} />
+
+        <Text style={styles.sectionTitle}>TRỢ GIÚP</Text>
+        <MenuSection items={supportItems} />
+
+        <Pressable
+          onPress={() => {
+            Alert.alert('Đăng xuất', 'Bạn có muốn đăng xuất khỏi tài khoản?', [
+              { text: 'Huỷ', style: 'cancel' },
+              {
+                text: 'Đăng xuất',
+                style: 'destructive',
+                onPress: () => {
+                  void handleLogout();
+                },
+              },
+            ]);
+          }}
+          disabled={loggingOut}
+          style={({ pressed }) => [
+            styles.logoutButton,
+            loggingOut && styles.logoutButtonDisabled,
+            pressed && styles.pressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Đăng xuất"
+          accessibilityState={{ disabled: loggingOut, busy: loggingOut }}
+        >
+          {loggingOut ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+          )}
+          <Text style={styles.logoutText}>
+            {loggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
+          </Text>
+        </Pressable>
+
+        <Text style={styles.versionText}>Phiên bản 1.0.4 · E-Commerce Market</Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+=== END FILE ===
+
+=== FILE: src/mock/paymentMethods.ts ===
+import { PaymentMethod } from '../types';
+
+export const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    id: 'pay-cod',
+    type: 'cod',
+    name: 'Thanh toán khi nhận hàng',
+    detail: 'COD - Trả tiền mặt khi giao',
+    isDefault: true,
+  },
+];
+
+=== END FILE ===
+
+=== FILE: app/payment-method.tsx ===
+import React, { useCallback, useState } from 'react';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+import { colors, radius, spacing } from '../src/constants/theme';
+import { usePaymentMethods } from '../src/context/PaymentMethodsContext';
+import {
+  Chip,
+  ConfirmSheet,
+  EmptyState,
+  FormField,
+  LoadingView,
+  PrimaryButton,
+  ScreenHeader,
+  SecondaryButton,
+  Toast,
+} from '../src/components';
+import { PaymentMethod, PaymentMethodType } from '../src/types';
+
+type IoniconName = keyof typeof Ionicons.glyphMap;
+
+/* -------------------------------------------------------------------------- */
+/*                          Brand metas & helpers                              */
+/* -------------------------------------------------------------------------- */
+
+type PaymentBrandKey = 'momo' | 'vietcombank' | 'bidv' | 'vietinbank' | 'agribank' | 'cod';
+
+interface PaymentBrandOption {
+  key: PaymentBrandKey;
+  label: string;
+  type: PaymentMethodType;
+  color: string;
+  shortName: string;
+  placeholder: string;
+}
+
+const PAYMENT_BRANDS: PaymentBrandOption[] = [
+  {
+    key: 'momo',
+    label: 'Ví MoMo',
+    type: 'wallet',
+    color: '#E91E63',
+    shortName: 'MoMo',
+    placeholder: 'Số điện thoại liên kết',
+  },
+  {
+    key: 'vietcombank',
+    label: 'Vietcombank',
+    type: 'card',
+    color: '#006F3C',
+    shortName: 'VCB',
+    placeholder: 'Số thẻ',
+  },
+  {
+    key: 'bidv',
+    label: 'BIDV',
+    type: 'card',
+    color: '#003C71',
+    shortName: 'BIDV',
+    placeholder: 'Số thẻ',
+  },
+  {
+    key: 'vietinbank',
+    label: 'VietinBank',
+    type: 'card',
+    color: '#F7941D',
+    shortName: 'VietinBank',
+    placeholder: 'Số thẻ',
+  },
+  {
+    key: 'agribank',
+    label: 'Agribank',
+    type: 'card',
+    color: '#009B74',
+    shortName: 'Agribank',
+    placeholder: 'Số thẻ',
+  },
+];
+
+function getBrandMeta(method: PaymentMethod | null): { color: string; shortName: string } {
+  if (!method) return { color: colors.primary, shortName: 'PAY' };
+  switch (method.name) {
+    case 'Ví MoMo':
+      return { color: '#E91E63', shortName: 'MoMo' };
+    case 'Vietcombank':
+      return { color: '#006F3C', shortName: 'VCB' };
+    case 'BIDV':
+      return { color: '#003C71', shortName: 'BIDV' };
+    case 'VietinBank':
+      return { color: '#F7941D', shortName: 'VietinBank' };
+    case 'Agribank':
+      return { color: '#009B74', shortName: 'Agribank' };
+    default:
+      return { color: colors.primary, shortName: 'COD' };
+  }
+}
+
+function getPaymentIcon(type: PaymentMethodType): IoniconName {
+  switch (type) {
+    case 'card':
+      return 'card-outline';
+    case 'wallet':
+      return 'wallet-outline';
+    case 'cod':
+      return 'cash-outline';
+    default:
+      return 'card-outline';
+  }
+}
+
+function maskNumber(raw: string): string {
+  const last4 = raw.replace(/\s/g, '').slice(-4);
+  return last4 ? `•••• ${last4}` : raw;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  Screen                                    */
+/* -------------------------------------------------------------------------- */
+
+export default function PaymentMethodScreen() {
+  const router = useRouter();
+  const {
+    methods,
+    defaultMethod,
+    loading,
+    addMethod,
+    removeMethod,
+    setDefault,
+  } = usePaymentMethods();
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [methodToDelete, setMethodToDelete] = useState<PaymentMethod | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedBrandKey, setSelectedBrandKey] = useState<PaymentBrandKey | null>(null);
+  const [formDetail, setFormDetail] = useState('');
+  const [formExpiry, setFormExpiry] = useState('');
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const selectedMethod =
+    methods.find((m) => m.id === selectedId) ?? defaultMethod ?? methods[0] ?? null;
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+  }, []);
+
+  const openAddModal = useCallback(() => {
+    setSelectedBrandKey(null);
+    setFormDetail('');
+    setFormExpiry('');
+    setFormError('');
+    setShowAddModal(true);
+  }, []);
+
+  const handleAddMethod = useCallback(async () => {
+    if (!selectedBrandKey) {
+      setFormError('Vui lòng chọn hình thức thanh toán.');
+      return;
+    }
+    const brand = PAYMENT_BRANDS.find((b) => b.key === selectedBrandKey);
+    if (!brand) return;
+
+    const detailRaw = formDetail.trim();
+    const expiry = formExpiry.trim();
+    if (!detailRaw || !expiry) {
+      setFormError('Vui lòng nhập đầy đủ thông tin.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await addMethod({
+        type: brand.type,
+        name: brand.label,
+        detail: `${brand.label} ${maskNumber(detailRaw)}`,
+        expiry,
+        isDefault: false,
+      });
+      setShowAddModal(false);
+      showToast('Đã thêm phương thức thanh toán');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Có lỗi khi thêm phương thức.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [addMethod, selectedBrandKey, formDetail, formExpiry, showToast]);
+
+  const handleDeleteMethod = useCallback(
+    (method: PaymentMethod) => setMethodToDelete(method),
+    [],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (!methodToDelete) return;
+    setSubmitting(true);
+    try {
+      await removeMethod(methodToDelete.id);
+      if (selectedId === methodToDelete.id) {
+        setSelectedId(null);
+      }
+      setMethodToDelete(null);
+      showToast('Đã xoá phương thức thanh toán');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [methodToDelete, removeMethod, selectedId, showToast]);
+
+  const handleConfirm = useCallback(async () => {
+    if (!selectedMethod) {
+      showToast('Vui lòng chọn phương thức thanh toán.');
+      return;
+    }
+    setConfirming(true);
+    try {
+      await setDefault(selectedMethod.id);
+      router.back();
+    } finally {
+      setConfirming(false);
+    }
+  }, [selectedMethod, setDefault, router, showToast]);
+
+  const selectedIsDefault = selectedMethod && defaultMethod?.id === selectedMethod.id;
+  const selectedBrandMeta = getBrandMeta(selectedMethod);
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <ScreenHeader title="Phương thức thanh toán" />
+
+      {loading ? (
+        <LoadingView label="Đang tải phương thức..." />
+      ) : methods.length === 0 ? (
+        <EmptyState
+          icon="card-outline"
+          title="Chưa có phương thức"
+          subtitle="Thêm thẻ hoặc ví để thanh toán nhanh hơn."
+          actionLabel="Thêm ngay"
+          onAction={openAddModal}
+        />
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Card preview */}
+          <View style={[styles.cardMockup, { backgroundColor: selectedBrandMeta.color }]}>
+            <View style={styles.cardDecorationOne} />
+            <View style={styles.cardDecorationTwo} />
+
+            <View style={styles.cardTopRow}>
+              <View style={styles.chip}>
+                <View style={styles.chipLine} />
+                <View style={styles.chipLine} />
+              </View>
+
+              <View style={styles.cardBrandRow}>
+                <Text style={styles.cardBrandText}>{selectedBrandMeta.shortName}</Text>
+                {selectedMethod?.type === 'cod' ? (
+                  <Ionicons name="cash-outline" size={22} color="rgba(255,255,255,0.72)" />
+                ) : null}
+              </View>
+            </View>
+
+            <Text style={styles.cardNumber}>
+              {selectedMethod?.type === 'card'
+                ? selectedMethod.detail
+                : selectedMethod?.type === 'wallet'
+                  ? selectedMethod.detail
+                  : 'Thanh toán khi nhận hàng'}
+            </Text>
+
+            <View style={styles.cardBottomRow}>
+              <View>
+                <Text style={styles.cardLabel}>CHỦ THẺ</Text>
+                <Text style={styles.cardValue}>{selectedMethod?.name ?? ''}</Text>
+              </View>
+              {selectedMethod?.expiry ? (
+                <View style={styles.cardExpiryBlock}>
+                  <Text style={styles.cardLabel}>HẾT HẠN</Text>
+                  <Text style={styles.cardValue}>{selectedMethod.expiry}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {selectedIsDefault ? (
+              <View style={styles.defaultBadge}>
+                <Ionicons name="checkmark" size={12} color={colors.primary} />
+                <Text style={styles.defaultBadgeText}>MẶC ĐỊNH</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Text style={styles.sectionTitle}>PHƯƠNG THỨC ĐÃ LƯU</Text>
+
+          {methods.map((method) => {
+            const isSelected = selectedMethod?.id === method.id;
+            const meta = getBrandMeta(method);
+            return (
+              <View key={method.id} style={[styles.optionRow, isSelected && styles.optionRowActive]}>
+                <Pressable
+                  style={styles.optionMainPress}
+                  onPress={() => setSelectedId(method.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Chọn ${method.name}`}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <View style={[styles.optionIconBox, { backgroundColor: meta.color }]}>
+                    <Text style={styles.optionIconText}>{meta.shortName}</Text>
+                  </View>
+
+                  <View style={styles.optionTextBlock}>
+                    <Text style={[styles.optionTitle, isSelected && styles.optionTitleActive]}>
+                      {method.name}
+                    </Text>
+                    <Text style={styles.optionSubtitle}>
+                      {method.detail}{method.expiry ? ` • ${method.expiry}` : ''}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.radioOuter, isSelected && styles.radioOuterActive]}>
+                    {isSelected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => handleDeleteMethod(method)}
+                  style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Xoá ${method.name}`}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
+            );
+          })}
+
+          <Pressable
+            onPress={openAddModal}
+            style={({ pressed }) => [styles.addNewCard, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Thêm phương thức thanh toán"
+          >
+            <Ionicons name="add" size={18} color={colors.primary} />
+            <Text style={styles.addNewCardText}>Thêm phương thức mới</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+
+      <View style={styles.footer}>
+        <PrimaryButton
+          title="Xác nhận"
+          onPress={handleConfirm}
+          loading={confirming}
+          icon="arrow-forward"
+          style={styles.confirmButton}
+        />
+      </View>
+
+      <ConfirmSheet
+        visible={methodToDelete !== null}
+        title="Xoá phương thức?"
+        message={
+          methodToDelete
+            ? `Bạn có chắc muốn xoá ${methodToDelete.name} (${methodToDelete.detail})?`
+            : ''
+        }
+        confirmText="Xoá"
+        cancelText="Huỷ"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setMethodToDelete(null)}
+      />
+
+      {/* Modal thêm mới */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Thêm phương thức thanh toán</Text>
+
+            <Text style={styles.modalSectionLabel}>Chọn hình thức</Text>
+            <View style={styles.brandGrid}>
+              {PAYMENT_BRANDS.map((brand) => {
+                const isActive = selectedBrandKey === brand.key;
+                return (
+                  <Pressable
+                    key={brand.key}
+                    onPress={() => setSelectedBrandKey(brand.key)}
+                    style={({ pressed }) => [
+                      styles.brandOption,
+                      { backgroundColor: brand.color },
+                      isActive && styles.brandOptionActive,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={brand.label}
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text style={styles.brandOptionText}>{brand.shortName}</Text>
+                    {isActive ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={colors.white}
+                        style={styles.brandCheck}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <FormField
+              label={
+                selectedBrandKey
+                  ? PAYMENT_BRANDS.find((b) => b.key === selectedBrandKey)?.placeholder ?? 'Số thẻ'
+                  : 'Số thẻ / SĐT'
+              }
+              value={formDetail}
+              onChangeText={setFormDetail}
+              placeholder="Nhập số thẻ hoặc số điện thoại"
+            />
+            <FormField
+              label="Hạn sử dụng (MM/YY)"
+              value={formExpiry}
+              onChangeText={setFormExpiry}
+              placeholder="Ví dụ: 09/28"
+              keyboardType="numbers-and-punctuation"
+            />
+
+            {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+
+            <View style={styles.modalActions}>
+              <SecondaryButton
+                title="Huỷ"
+                onPress={() => setShowAddModal(false)}
+                style={styles.modalButton}
+              />
+              <PrimaryButton
+                title="Thêm"
+                onPress={handleAddMethod}
+                loading={submitting}
+                disabled={submitting}
+                style={styles.modalButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        onHide={() => setToastVisible(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+
+  /* Card preview */
+  cardMockup: {
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xl,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#1A1A1A',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.22,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  cardDecorationOne: {
+    position: 'absolute',
+    top: -70,
+    right: -50,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255, 87, 34, 0.16)',
+  },
+  cardDecorationTwo: {
+    position: 'absolute',
+    bottom: -80,
+    left: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chip: {
+    width: 42,
+    height: 32,
+    borderRadius: 7,
+    backgroundColor: '#E7C97A',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    gap: 5,
+  },
+  chipLine: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(26, 26, 26, 0.35)',
+  },
+  cardBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardBrandText: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 8,
+    letterSpacing: 0.3,
+  },
+  cardNumber: {
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 2.4,
+    marginTop: 26,
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 22,
+  },
+  cardExpiryBlock: {
+    alignItems: 'flex-end',
+  },
+  cardLabel: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+  cardValue: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  defaultBadge: {
+    position: 'absolute',
+    top: 66,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  defaultBadgeText: {
+    color: colors.primary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginLeft: 4,
+  },
+
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: colors.gray,
+    marginTop: 26,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  optionRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  optionMainPress: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  optionIconText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  optionTextBlock: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.dark,
+    marginBottom: 3,
+  },
+  optionTitleActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  optionSubtitle: {
+    fontSize: 12,
+    color: colors.gray,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.grayLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  radioOuterActive: {
+    borderColor: colors.primary,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+  },
+  deleteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.md,
+  },
+  pressed: { opacity: 0.7 },
+  addNewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 54,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    backgroundColor: colors.card,
+    marginTop: spacing.sm,
+  },
+  addNewCardText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.primary,
+    marginLeft: 6,
+  },
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  confirmButton: {
+    width: '100%',
+  },
+
+  /* Modal */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.dark,
+    marginBottom: spacing.md,
+  },
+  modalSectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  brandGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  brandOption: {
+    width: 80,
+    height: 56,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  brandOptionActive: {
+    borderColor: colors.primary,
+  },
+  brandOptionText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  brandCheck: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+  },
+  formError: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  modalButton: {
+    flex: 1,
+  },
+});
+
+=== END FILE ===
+
+=== FILE: app/app-settings.tsx ===
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { colors, radius, spacing } from '../src/constants/theme';
+import { useSettings } from '../src/context/SettingsContext';
+import { PrimaryButton, SecondaryButton } from '../src/components/Button';
+import { LoadingView } from '../src/components/LoadingView';
+import { AppSettings } from '../src/types';
+
+type IoniconName = keyof typeof Ionicons.glyphMap;
+
+interface SettingRowProps {
+  icon: IoniconName;
+  iconColor?: string;
+  iconBackground?: string;
+  title: string;
+  subtitle?: string;
+  titleColor?: string;
+  right?: React.ReactNode;
+  onPress?: () => void;
+  isLast?: boolean;
+}
+
+function SettingRow({
+  icon,
+  iconColor = colors.primary,
+  iconBackground = colors.primarySoft,
+  title,
+  subtitle,
+  titleColor = colors.dark,
+  right,
+  onPress,
+  isLast,
+}: SettingRowProps) {
+  const content = (
+    <>
+      <View style={[styles.iconBox, { backgroundColor: iconBackground }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <View style={styles.rowTextWrap}>
+        <Text style={[styles.rowTitle, { color: titleColor }]}>{title}</Text>
+        {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {right ?? null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.row,
+          !isLast && styles.rowDivider,
+          pressed && { opacity: 0.7 },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={[styles.row, !isLast && styles.rowDivider]}>{content}</View>;
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return <Text style={styles.sectionLabel}>{children}</Text>;
+}
+
+interface SheetModalProps {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function SheetModal({ visible, title, onClose, children }: SheetModalProps) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        style={styles.modalRoot}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Đóng" />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{title}</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.sheetClose,
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Đóng"
+            >
+              <Ionicons name="close" size={18} color={colors.dark} />
+            </Pressable>
+          </View>
+          {children}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+export default function AppSettingsScreen() {
+  const router = useRouter();
+  const { settings, loading, saveSettings } = useSettings();
+
+  const [draft, setDraft] = useState<AppSettings>(settings);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
+
+  useEffect(() => {
+    setDraft(settings);
+  }, [settings]);
+
+  const hasChanges = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(settings),
+    [draft, settings],
+  );
+
+  const handleBack = () => {
+    if (hasChanges) {
+      Alert.alert('Hủy thay đổi?', 'Các thay đổi chưa được lưu.', [
+        { text: 'Tiếp tục chỉnh sửa', style: 'cancel' },
+        { text: 'Hủy thay đổi', style: 'destructive', onPress: () => router.back() },
+      ]);
+    } else {
+      router.back();
+    }
+  };
+
+  const handleClose = () => handleBack();
+
+  const handleSave = async () => {
+    setIsSubmitting(true);
+    try {
+      await saveSettings(draft);
+      Alert.alert('Đã lưu cài đặt', 'Các tuỳ chỉnh của bạn đã được cập nhật.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể lưu cài đặt. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggle = (key: keyof AppSettings, value: boolean) => {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleBiometricToggle = (value: boolean) => {
+    setDraft((prev) => ({ ...prev, biometricEnabled: value }));
+    if (value) {
+      Alert.alert(
+        'Đã bật đăng nhập sinh trắc học',
+        'Bạn có thể đăng nhập bằng FaceID / vân tay trên thiết bị này.',
+      );
+    }
+  };
+
+  const handlePrivacyPolicy = () => {
+    Alert.alert(
+      'Chính sách bảo mật',
+      'Chúng tôi chỉ lưu trữ thông tin cần thiết để xử lý đơn hàng. Dữ liệu của bạn không bao giờ được bán cho bên thứ ba và bạn có thể yêu cầu xoá bất cứ lúc nào.',
+      [{ text: 'Đã hiểu' }],
+    );
+  };
+
+  const closePasswordModal = () => {
+    setPasswordModalVisible(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
+    setShowPassword(false);
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Vui lòng nhập đầy đủ các trường.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    setIsPasswordSubmitting(true);
+    setPasswordError(null);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      Alert.alert('Đổi mật khẩu thành công', 'Mật khẩu của bạn đã được cập nhật.');
+      closePasswordModal();
+    } catch {
+      Alert.alert('Lỗi', 'Không thể đổi mật khẩu. Vui lòng thử lại.');
+    } finally {
+      setIsPasswordSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return <LoadingView label="Đang tải cài đặt..." />;
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [styles.headerButton, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Quay lại"
+        >
+          <Ionicons name="chevron-back" size={22} color={colors.dark} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Cài đặt ứng dụng</Text>
+        <Pressable
+          onPress={handleClose}
+          style={({ pressed }) => [styles.headerButton, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Đóng"
+        >
+          <Ionicons name="close" size={20} color={colors.dark} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <SectionLabel>THÔNG BÁO</SectionLabel>
+        <View style={styles.card}>
+          <SettingRow
+            icon="notifications-outline"
+            title="Cho phép thông báo"
+            subtitle="Nhận thông báo từ ứng dụng"
+            isLast
+            right={
+              <Switch
+                value={draft.pushEnabled}
+                onValueChange={(value) => handleToggle('pushEnabled', value)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.white}
+                ios_backgroundColor={colors.border}
+                accessibilityLabel="Cho phép thông báo"
+                accessibilityRole="switch"
+                accessibilityState={{ checked: draft.pushEnabled }}
+              />
+            }
+          />
+        </View>
+
+        <SectionLabel>BẢO MẬT</SectionLabel>
+        <View style={styles.card}>
+          <SettingRow
+            icon="lock-closed-outline"
+            title="Đổi mật khẩu"
+            subtitle="Cập nhật mật khẩu tài khoản"
+            onPress={() => setPasswordModalVisible(true)}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
+          />
+          <SettingRow
+            icon="finger-print-outline"
+            title="Đăng nhập sinh trắc học"
+            subtitle="FaceID / vân tay"
+            isLast
+            right={
+              <Switch
+                value={draft.biometricEnabled}
+                onValueChange={handleBiometricToggle}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.white}
+                ios_backgroundColor={colors.border}
+                accessibilityLabel="Đăng nhập sinh trắc học"
+                accessibilityRole="switch"
+                accessibilityState={{ checked: draft.biometricEnabled }}
+              />
+            }
+          />
+        </View>
+
+        <SectionLabel>QUYỀN RIÊNG TƯ</SectionLabel>
+        <View style={styles.card}>
+          <SettingRow
+            icon="shield-checkmark-outline"
+            title="Chính sách bảo mật"
+            subtitle="Cách chúng tôi xử lý dữ liệu"
+            onPress={handlePrivacyPolicy}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.textMuted} />}
+            isLast
+          />
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <PrimaryButton
+          title="Lưu cài đặt"
+          onPress={handleSave}
+          loading={isSubmitting}
+          disabled={isSubmitting}
+        />
+      </View>
+
+      <SheetModal
+        visible={passwordModalVisible}
+        title="Đổi mật khẩu"
+        onClose={closePasswordModal}
+      >
+        <Text style={styles.inputLabel}>Mật khẩu hiện tại</Text>
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={styles.input}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            placeholder="Nhập mật khẩu hiện tại"
+            placeholderTextColor={colors.placeholder}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        <Text style={styles.inputLabel}>Mật khẩu mới</Text>
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={[styles.input, styles.inputWithIcon]}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            placeholder="Ít nhất 6 ký tự"
+            placeholderTextColor={colors.placeholder}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setShowPassword((prev) => !prev)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        </View>
+
+        <Text style={styles.inputLabel}>Xác nhận mật khẩu mới</Text>
+        <View style={styles.inputWrap}>
+          <TextInput
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Nhập lại mật khẩu mới"
+            placeholderTextColor={colors.placeholder}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+
+        <View style={styles.sheetActions}>
+          <SecondaryButton title="Hủy" onPress={closePasswordModal} style={styles.cancelButton} />
+          <PrimaryButton
+            title="Cập nhật mật khẩu"
+            onPress={handlePasswordSubmit}
+            loading={isPasswordSubmitting}
+            disabled={isPasswordSubmitting}
+            style={styles.updateButton}
+          />
+        </View>
+      </SheetModal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  headerTitle: {
+    flex: 1,
+    marginHorizontal: spacing.md,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xxl,
+  },
+  sectionLabel: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    color: colors.textMuted,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  rowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  rowTextWrap: {
+    flex: 1,
+    paddingRight: spacing.sm,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.dark,
+  },
+  rowSubtitle: {
+    marginTop: 2,
+    fontSize: 12.5,
+    color: colors.textMuted,
+  },
+  footer: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.overlay,
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.dark,
+  },
+  sheetClose: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  inputLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.textMuted,
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  inputWrap: {
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    fontSize: 15,
+    color: colors.dark,
+    backgroundColor: colors.background,
+  },
+  inputWithIcon: {
+    paddingRight: 44,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 12,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.danger,
+  },
+  sheetActions: {
+    flexDirection: 'row',
+    marginTop: spacing.lg,
+  },
+  cancelButton: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  updateButton: {
+    flex: 1.6,
+  },
+});
+
+=== END FILE ===
