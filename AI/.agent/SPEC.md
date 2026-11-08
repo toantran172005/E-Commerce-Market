@@ -1,96 +1,29 @@
 # ECommerceApp Feature Specification (SPEC.md)
 
-## Overview
-A modern, responsive e-commerce mobile application built with React Native (Expo Router v58), React 19, TypeScript 6, and a robust offline/mock service layer with realistic business logic.
-
----
-
-## 1. Authentication & Profile
-- **F-AUTH-01: User Login**
-  - Path: `app/(auth)/login.tsx`
-  - Specification: Email + password authentication. Validates input format (RFC regex for email, >= 6 chars for password). Supports preset demo login (`demo@shop.vn / 123456`).
-  - Status: COMPLETE (Verified via UI & unit test in `tests/services.test.mjs`).
-- **F-AUTH-02: User Registration**
-  - Path: `app/(auth)/register.tsx`
-  - Specification: Full name, email, phone number, and password fields. Validates Vietnamese phone prefixes and unique email.
-  - Status: COMPLETE (Verified via `AuthService.register`).
-- **F-AUTH-03: Guest Browsing Mode**
-  - Path: `app/(auth)/login.tsx` -> `AuthService.loginAsGuest`
-  - Specification: Allows users to explore the catalog, add products to cart, and test checkout without immediate account registration.
-  - Status: COMPLETE (Verified via `AuthService.loginAsGuest`).
-- **F-AUTH-04: Profile Management**
-  - Path: `app/update-user.tsx`
-  - Specification: View and update personal information (full name, email, phone number, default address).
-  - Status: COMPLETE.
-
----
-
-## 2. Product Catalog & Search
-- **F-CAT-01: Home Screen**
-  - Path: `app/(tabs)/home.tsx`
-  - Specification: Promotional banner carousel, horizontal category slider with iconography, search input, flash sale list, popular products grid.
-  - Status: COMPLETE.
-- **F-CAT-02: Product Detail**
-  - Path: `app/product/[id].tsx`
-  - Specification: High-resolution image view, color & size variant selector, formatted price with discount badge, stock availability, customer ratings/reviews, Add to Cart and Buy Now.
-  - Status: COMPLETE.
-- **F-CAT-03: Filter & Search**
-  - Path: `app/filter.tsx`
-  - Specification: Filter by single/multiple categories, brand selection, min/max price slider/inputs, minimum star rating, and sort options (popular, price asc/desc, newest, rating).
-  - Status: COMPLETE.
-
----
-
-## 3. Cart & Checkout
-- **F-CART-01: Shopping Cart Management**
-  - Path: `app/cart.tsx`
-  - Specification: Increase/decrease item quantity, delete items, select/deselect items, instant subtotal recalculation.
-  - Status: COMPLETE (Verified via `tests/utils.test.mjs`).
-- **F-CHECKOUT-01: Checkout Process**
-  - Path: `app/checkout.tsx`
-  - Specification: Delivery address selection, shipping method calculation, voucher discount calculation with minimum order limits, order notes, payment options (COD, MoMo, Bank transfer: BIDV, Vietinbank, Agribank, Vietcombank).
-  - Status: COMPLETE.
-- **F-CHECKOUT-02: Checkout Confirmation**
-  - Path: `app/checkout-success.tsx`
-  - Specification: Displays placed order ID, order recap, button to view order tracking or return to home.
-  - Status: COMPLETE.
-
----
-
-## 4. Orders & Tracking
-- **F-ORD-01: Order History**
-  - Path: `app/orders.tsx`
-  - Specification: Filter tabs (All, Pending, Shipping, Delivered, Cancelled). Summary cards with status badges and order totals.
-  - Status: COMPLETE (Verified via `OrderService.listOrders`).
-- **F-ORD-02: Order Details & Timeline**
-  - Path: `app/order/[id].tsx`
-  - Specification: Itemized order breakdown, delivery address, payment method, dynamic vertical tracking timeline, and order cancellation button for eligible orders.
-  - Status: COMPLETE (Verified via `OrderService.getOrder` & `OrderService.cancelOrder`).
-
----
-
-## 5. Account, Settings & Support
-- **F-ACC-01: Account Center**
-  - Path: `app/(tabs)/account.tsx`
-  - Specification: Profile overview, quick navigation to Orders, Shipping Addresses, Payment Methods, Settings, Help & Support, and Logout.
-  - Status: COMPLETE.
-- **F-ACC-02: Address Book**
-  - Path: `app/shipping-address.tsx`
-  - Specification: List saved addresses, set default address, distinctive icons for Home vs Office, add/edit address modal with full form validation.
-  - Status: COMPLETE.
-- **F-ACC-03: Payment Methods**
-  - Path: `app/payment-method.tsx`
-  - Specification: List saved cards/wallets with authentic brand styling (MoMo pink, Vietinbank blue, Vietcombank green, BIDV, Agribank), add new card modal (card number & expiry), set default.
-  - Status: COMPLETE.
-- **F-ACC-04: Notifications**
-  - Path: `app/notification.tsx`
-  - Specification: View system & order notifications, mark as read, popup detail modal on tap with dismiss button.
-  - Status: COMPLETE.
-- **F-ACC-05: App Settings**
-  - Path: `app/app-settings.tsx`
-  - Specification: Push notification permission toggle, terms and privacy policy view.
-  - Status: COMPLETE.
-- **F-ACC-06: Help & Support**
-  - Path: `app/help.tsx`
-  - Specification: Collapsible FAQs accordion, hotline phone link, direct support email and live chat triggers.
-  - Status: COMPLETE.
+| UC ID | Use Case Name | SRS Scope & Main Flow | Current Status | Evidence & Implementation Files |
+|-------|---------------|-----------------------|----------------|---------------------------------|
+| UC001 | Đăng nhập (User Login) | Login by email/phone + password; "Quên mật khẩu" (3a); "Đăng ký" (3b); Exact message "Thông tin đăng nhập không chính xác" (4a1); session persistence | PARTIAL | `app/(auth)/login.tsx`, `src/services/auth.service.ts`. Missing: Forgot password flow & exact error message matching. |
+| UC002 | Quản lý tài khoản (Account Hub) | Account dashboard; navigation to UC003, UC004, Orders, Settings, Help; Back keeps state; DB error preserves data | COMPLETE | `app/(tabs)/account.tsx`, `app/orders.tsx`, `app/help.tsx`, `app/app-settings.tsx`. |
+| UC003 | Cập nhật thông tin (Update Profile) | Edit name/phone/avatar; validate phone format, required fields; real avatar picker + size validation; Cancel discards changes; error "Không thể lưu thông tin, vui lòng thử lại" | PARTIAL | `app/update-user.tsx`. Uses fake pravatar.cc images. Needs real image picker (`expo-image-picker`) and exact error messaging. |
+| UC004 | Cập nhật địa chỉ (Update Address) | Manage address book: recipient name, phone, province/city, district, ward, street detail; default address invariant; reachable from Checkout | PARTIAL | `app/shipping-address.tsx`, `src/services/profile.service.ts`. Address currently flat text; needs structured fields (province, district, ward, street). |
+| UC005 | Lọc sản phẩm (Filter Products) | Filter products by multiple criteria without login; reset filters; result count badge | COMPLETE | `app/filter.tsx`, `src/services/catalog.service.ts`. |
+| UC006 | Lọc theo giá (Filter by Price) | Price range min/max slider and inputs; min <= max validation | COMPLETE | `app/filter.tsx`, `tests/services.test.mjs`. |
+| UC007 | Lọc theo danh mục (Filter by Category) | Multi-category selection chip filter | COMPLETE | `app/filter.tsx`, `tests/services.test.mjs`. |
+| UC008 | Lọc theo thương hiệu (Filter by Brand) | Brand selection filter | COMPLETE | `app/filter.tsx`, `tests/services.test.mjs`. |
+| UC009 | Lọc theo đánh giá (Filter by Rating) | Star rating filter (3★, 4★, 5★) | COMPLETE | `app/filter.tsx`, `tests/services.test.mjs`. |
+| UC010 | Xem chi tiết sản phẩm (Product Detail) | Product images carousel with swipe/dots; price, variants, stock, reviews list; Shopee-style "CHI TIẾT SẢN PHẨM" + "MÔ TẢ SẢN PHẨM" | PARTIAL | `app/product/[id].tsx`. Missing: Shopee-style specification table & structured description (mobile.docx B), reviews list rendering. |
+| UC011 | Quản lý giỏ hàng (Cart Management) | View cart items, select/deselect all, selected-only subtotal calculation, persistence | COMPLETE | `app/cart.tsx`, `src/context/CartContext.tsx`, `src/utils/cart.ts`. |
+| UC012 | Thêm vào giỏ hàng (Add to Cart) | Add with selected variant, stock limit enforcement | COMPLETE | `app/product/[id].tsx`, `src/context/CartContext.tsx`. |
+| UC013 | Cập nhật giỏ hàng (Update Cart) | Change quantity, cap at stock, change variant | COMPLETE | `app/cart.tsx`, `src/context/CartContext.tsx`. |
+| UC014 | Xóa khỏi giỏ hàng (Remove from Cart) | Delete individual item, clear selected items, empty cart state | COMPLETE | `app/cart.tsx`, `src/context/CartContext.tsx`. |
+| UC015 | Đặt hàng và thanh toán (Checkout) | Address selection, shipping methods (Hỏa tốc / Nhanh / Tiêu chuẩn), voucher, payment methods (COD, MoMo, Bank); sold-out handling; payment failure / "Chờ thanh toán" state | PARTIAL | `app/checkout.tsx`, `src/context/CheckoutContext.tsx`. Needs sold-out stock guard in transaction & payment failure / "Chờ thanh toán" state. |
+| UC016 | Áp dụng voucher (Apply Voucher) | Voucher list + code input; check expiry, min order, usage count, category restrictions; cancel/change voucher; exact message "Mã giảm giá không hợp lệ hoặc không đủ điều kiện áp dụng" | PARTIAL | `src/services/voucher.service.ts`, `app/checkout.tsx`. Needs category restriction checks and cancel/change voucher button. |
+| UC017 | Xác nhận đơn (Order Confirmation) | Create order transactionally, decrement stock, increment voucher usage, clear cart, notification, invoice/receipt view, success screen | PARTIAL | `app/checkout-success.tsx`, `src/services/order.service.ts`. Needs receipt/invoice modal/screen view. |
+| UC018 | Hủy đơn hàng (Cancel Order) | Cancel order in pending/processing state; requires cancellation reason; restores stock; status "Đã hủy" | COMPLETE | `app/order/[id].tsx`, `src/services/order.service.ts`. |
+| UC019 | Quản lý yêu thích & Hồ sơ (Favourites) | Persistent favourites list per user account, empty state | COMPLETE | `app/(tabs)/favourite.tsx`, `src/context/FavouritesContext.tsx`. |
+| UC020 | Thêm sản phẩm yêu thích (Add Favourite) | Heart toggle on card and product detail | COMPLETE | `src/components/ProductCard.tsx`, `app/product/[id].tsx`. |
+| UC021 | Xóa sản phẩm yêu thích (Remove Favourite) | Remove from favourites list or untoggle heart | COMPLETE | `src/components/ProductCard.tsx`, `app/(tabs)/favourite.tsx`. |
+| BUG-A | mobile.docx A (Nested Button Violation) | Eliminate `<button> cannot contain a nested <button>` DOM violations on Web across all screens; fix Toast overlapping bottom action bar | BROKEN | `src/components/ProductCard.tsx`, `app/filter.tsx`, `app/notification.tsx`, `app/payment-method.tsx`, `app/(tabs)/home.tsx`, `app/(tabs)/favourite.tsx`, `app/order/[id].tsx`, `src/components/Toast.tsx`. |
+| FEAT-B | mobile.docx B (Shopee-Style Product Details) | "CHI TIẾT SẢN PHẨM" label/value table + "MÔ TẢ SẢN PHẨM" structured highlights & policy for all products | MISSING | `src/types/index.ts`, `seed.mjs`, `src/mock/products.ts`, `app/product/[id].tsx`, `src/components/ProductSpecsTable.tsx`, `src/components/ProductDescriptionView.tsx`. |
+| FEAT-C | Product Image Integrity & Gallery | Verified working HTTP 200 tech image URLs (replace picsum placeholders), image error fallback, swipe gallery dots | PARTIAL | `src/mock/products.ts`, `seed.mjs`, `app/product/[id].tsx`. |
+| FEAT-REV | SRS Scope 1.2 (Write Review Flow) | Customer review submission with 1-5 star rating, comment, and optional photo for delivered orders | MISSING | `app/order/[id].tsx`, `src/services/catalog.service.ts`. |

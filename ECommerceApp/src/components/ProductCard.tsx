@@ -22,7 +22,7 @@ interface ProductCardProps {
   style?: ViewStyle;
 }
 
-/** Card sản phẩm dùng chung cho lưới 2 cột. */
+/** Card sản phẩm dùng chung cho lưới 2 cột. Đã tách nút yêu thích làm sibling để tránh DOM nesting lỗi trên Web. */
 export function ProductCard({
   product,
   onPress,
@@ -34,56 +34,58 @@ export function ProductCard({
   const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, width ? { width } : null, pressed && styles.pressed, style]}
-      accessibilityRole="button"
-      accessibilityLabel={`${product.name}, giá ${product.price} đô`}
-    >
-      <View style={styles.imageWrap}>
-        <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="contain" />
+    <View style={[styles.card, width ? { width } : null, style]}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.cardPressable, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`${product.name}, giá ${product.price} đô`}
+      >
+        <View style={styles.imageWrap}>
+          <Image source={{ uri: product.imageUrl }} style={styles.image} resizeMode="contain" />
 
-        {discountPercent != null ? (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{discountPercent}%</Text>
-          </View>
-        ) : product.badge === 'new' ? (
-          <View style={[styles.discountBadge, styles.newBadge]}>
-            <Text style={styles.discountText}>NEW</Text>
-          </View>
-        ) : null}
+          {discountPercent != null ? (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discountPercent}%</Text>
+            </View>
+          ) : product.badge === 'new' ? (
+            <View style={[styles.discountBadge, styles.newBadge]}>
+              <Text style={styles.discountText}>NEW</Text>
+            </View>
+          ) : null}
+        </View>
 
-        {onToggleFavourite ? (
-          <Pressable
-            onPress={onToggleFavourite}
-            hitSlop={8}
-            style={styles.heartButton}
-            accessibilityRole="button"
-            accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
-          >
-            <Ionicons
-              name={isFavourite ? 'heart' : 'heart-outline'}
-              size={16}
-              color={isFavourite ? colors.primary : colors.gray}
-            />
-          </Pressable>
-        ) : null}
-      </View>
+        <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
 
-      <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
+        <View style={styles.ratingRow}>
+          <RatingStars rating={product.rating ?? 0} size={11} />
+          <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
+        </View>
 
-      <View style={styles.ratingRow}>
-        <RatingStars rating={product.rating ?? 0} size={11} />
-        <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
-      </View>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>${product.price}</Text>
+          {product.originalPrice && product.originalPrice > product.price ? (
+            <Text style={styles.oldPrice}>${product.originalPrice}</Text>
+          ) : null}
+        </View>
+      </Pressable>
 
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>${product.price}</Text>
-        {product.originalPrice && product.originalPrice > product.price ? (
-          <Text style={styles.oldPrice}>${product.originalPrice}</Text>
-        ) : null}
-      </View>
-    </Pressable>
+      {onToggleFavourite ? (
+        <Pressable
+          onPress={onToggleFavourite}
+          hitSlop={8}
+          style={styles.heartButton}
+          accessibilityRole="button"
+          accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+        >
+          <Ionicons
+            name={isFavourite ? 'heart' : 'heart-outline'}
+            size={16}
+            color={isFavourite ? colors.primary : colors.gray}
+          />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -99,6 +101,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    position: 'relative',
+  },
+  cardPressable: {
+    width: '100%',
   },
   pressed: { opacity: 0.9 },
   imageWrap: {
@@ -127,14 +133,20 @@ const styles = StyleSheet.create({
   },
   heartButton: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: spacing.sm + 6,
+    right: spacing.sm + 6,
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
+    zIndex: 10,
   },
   name: {
     marginTop: spacing.sm,

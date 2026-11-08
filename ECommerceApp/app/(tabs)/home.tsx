@@ -51,54 +51,56 @@ function HomeProductCard({
   const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, width ? { width } : null, pressed && styles.pressedCard]}
-      accessibilityRole="button"
-      accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
-    >
-      <View style={styles.cardImageWrap}>
-        <Image source={{ uri: product.imageUrl }} style={styles.cardImage} resizeMode="contain" />
+    <View style={[styles.card, width ? { width } : null]}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [pressed && styles.pressedCard]}
+        accessibilityRole="button"
+        accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
+      >
+        <View style={styles.cardImageWrap}>
+          <Image source={{ uri: product.imageUrl }} style={styles.cardImage} resizeMode="contain" />
 
-        {discountPercent != null ? (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{discountPercent}%</Text>
-          </View>
-        ) : product.badge === 'new' ? (
-          <View style={[styles.discountBadge, styles.newBadge]}>
-            <Text style={styles.discountText}>NEW</Text>
-          </View>
-        ) : null}
+          {discountPercent != null ? (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discountPercent}%</Text>
+            </View>
+          ) : product.badge === 'new' ? (
+            <View style={[styles.discountBadge, styles.newBadge]}>
+              <Text style={styles.discountText}>NEW</Text>
+            </View>
+          ) : null}
+        </View>
 
-        <Pressable
-          onPress={onToggleFavourite}
-          hitSlop={8}
-          style={styles.heartButton}
-          accessibilityRole="button"
-          accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
-        >
-          <Ionicons
-            name={isFavourite ? 'heart' : 'heart-outline'}
-            size={16}
-            color={isFavourite ? colors.primary : colors.gray}
-          />
-        </Pressable>
-      </View>
+        <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
 
-      <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
+        <View style={styles.ratingRow}>
+          <RatingStars rating={product.rating ?? 0} size={11} />
+          <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
+        </View>
 
-      <View style={styles.ratingRow}>
-        <RatingStars rating={product.rating ?? 0} size={11} />
-        <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
-      </View>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{formatMoney(product.price)}</Text>
+          {product.originalPrice && product.originalPrice > product.price ? (
+            <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+          ) : null}
+        </View>
+      </Pressable>
 
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{formatMoney(product.price)}</Text>
-        {product.originalPrice && product.originalPrice > product.price ? (
-          <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
-        ) : null}
-      </View>
-    </Pressable>
+      <Pressable
+        onPress={onToggleFavourite}
+        hitSlop={8}
+        style={styles.heartButton}
+        accessibilityRole="button"
+        accessibilityLabel={isFavourite ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
+      >
+        <Ionicons
+          name={isFavourite ? 'heart' : 'heart-outline'}
+          size={16}
+          color={isFavourite ? colors.primary : colors.gray}
+        />
+      </Pressable>
+    </View>
   );
 }
 
@@ -118,41 +120,43 @@ function HomeProductListRow({
   const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.listCard, pressed && styles.pressedCard]}
-      accessibilityRole="button"
-      accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
-    >
-      <View style={styles.listImageWrap}>
-        <Image source={{ uri: product.imageUrl }} style={styles.listImage} resizeMode="contain" />
+    <View style={styles.listCard}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.listCardContent, pressed && styles.pressedCard]}
+        accessibilityRole="button"
+        accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
+      >
+        <View style={styles.listImageWrap}>
+          <Image source={{ uri: product.imageUrl }} style={styles.listImage} resizeMode="contain" />
 
-        {discountPercent != null ? (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{discountPercent}%</Text>
-          </View>
-        ) : product.badge === 'new' ? (
-          <View style={[styles.discountBadge, styles.newBadge]}>
-            <Text style={styles.discountText}>NEW</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.listInfo}>
-        <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
-
-        <View style={styles.ratingRow}>
-          <RatingStars rating={product.rating ?? 0} size={11} />
-          <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
-        </View>
-
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatMoney(product.price)}</Text>
-          {product.originalPrice && product.originalPrice > product.price ? (
-            <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+          {discountPercent != null ? (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discountPercent}%</Text>
+            </View>
+          ) : product.badge === 'new' ? (
+            <View style={[styles.discountBadge, styles.newBadge]}>
+              <Text style={styles.discountText}>NEW</Text>
+            </View>
           ) : null}
         </View>
-      </View>
+
+        <View style={styles.listInfo}>
+          <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
+
+          <View style={styles.ratingRow}>
+            <RatingStars rating={product.rating ?? 0} size={11} />
+            <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
+          </View>
+
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>{formatMoney(product.price)}</Text>
+            {product.originalPrice && product.originalPrice > product.price ? (
+              <Text style={styles.oldPrice}>{formatMoney(product.originalPrice)}</Text>
+            ) : null}
+          </View>
+        </View>
+      </Pressable>
 
       <Pressable
         onPress={onToggleFavourite}
@@ -167,7 +171,7 @@ function HomeProductListRow({
           color={isFavourite ? colors.primary : colors.gray}
         />
       </Pressable>
-    </Pressable>
+    </View>
   );
 }
 
@@ -716,6 +720,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.sm,
     marginBottom: CARD_GAP,
+  },
+  listCardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   listImageWrap: {
     width: 92,

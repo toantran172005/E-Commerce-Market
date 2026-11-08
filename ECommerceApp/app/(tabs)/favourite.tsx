@@ -71,56 +71,52 @@ export default function FavouriteScreen() {
       const hasDiscount = discountPercent != null && discountPercent > 0;
 
       return (
-        <Pressable
-          onPress={() => handleProductPress(item.id)}
-          style={({ pressed }) => [
+        <View
+          style={[
             styles.card,
             { width: cardWidth, maxWidth: cardWidth },
-            pressed && styles.pressed,
           ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Xem chi tiết ${item.name}`}
         >
-          <View style={styles.imageWrapper}>
-            <Image source={{ uri: item.imageUrl }} style={styles.image} resizeMode="contain" />
+          <Pressable
+            onPress={() => handleProductPress(item.id)}
+            style={({ pressed }) => [pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Xem chi tiết ${item.name}`}
+          >
+            <View style={styles.imageWrapper}>
+              <Image source={{ uri: item.imageUrl }} style={styles.image} resizeMode="contain" />
 
-            {hasDiscount && (
-              <View style={styles.saleBadge}>
-                <Text style={styles.saleBadgeText}>-{discountPercent}%</Text>
-              </View>
-            )}
+              {hasDiscount && (
+                <View style={styles.saleBadge}>
+                  <Text style={styles.saleBadgeText}>-{discountPercent}%</Text>
+                </View>
+              )}
+            </View>
 
-            <Pressable
-              onPress={() => handleRemoveFavourite(item)}
-              hitSlop={8}
-              style={styles.heartButton}
-              accessibilityRole="button"
-              accessibilityLabel={`Bỏ yêu thích ${item.name}`}
-            >
-              <Ionicons name="heart" size={16} color={colors.primary} />
-            </Pressable>
-          </View>
+            {item.brandName ? (
+              <Text style={styles.brandText}>{item.brandName.toUpperCase()}</Text>
+            ) : null}
 
-          {item.brandName ? (
-            <Text style={styles.brandText}>{item.brandName.toUpperCase()}</Text>
-          ) : null}
+            <Text style={styles.nameText} numberOfLines={2}>
+              {item.name}
+            </Text>
 
-          <Text style={styles.nameText} numberOfLines={2}>
-            {item.name}
-          </Text>
-
-          <View style={styles.ratingRow}>
-            <RatingStars rating={item.rating ?? 0} size={11} />
-            <Text style={styles.reviewsText}>({item.reviewCount ?? 0})</Text>
-          </View>
+            <View style={styles.ratingRow}>
+              <RatingStars rating={item.rating ?? 0} size={11} />
+              <Text style={styles.reviewsText}>({item.reviewCount ?? 0})</Text>
+            </View>
+          </Pressable>
 
           <View style={styles.bottomRow}>
-            <View style={styles.priceColumn}>
+            <Pressable
+              onPress={() => handleProductPress(item.id)}
+              style={styles.priceColumn}
+            >
               <Text style={styles.priceText}>{formatMoney(item.price)}</Text>
               {item.originalPrice && item.originalPrice > item.price ? (
                 <Text style={styles.oldPriceText}>{formatMoney(item.originalPrice)}</Text>
               ) : null}
-            </View>
+            </Pressable>
 
             <Pressable
               onPress={() => handleAddToCart(item)}
@@ -132,7 +128,17 @@ export default function FavouriteScreen() {
               <Ionicons name="add" size={20} color={colors.white} />
             </Pressable>
           </View>
-        </Pressable>
+
+          <Pressable
+            onPress={() => handleRemoveFavourite(item)}
+            hitSlop={8}
+            style={styles.heartButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Bỏ yêu thích ${item.name}`}
+          >
+            <Ionicons name="heart" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
       );
     },
     [handleProductPress, handleAddToCart, handleRemoveFavourite, cardWidth],

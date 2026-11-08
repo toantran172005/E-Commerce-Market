@@ -8,10 +8,11 @@ interface ToastProps {
   visible: boolean;
   onHide: () => void;
   duration?: number;
+  bottom?: number;
 }
 
-/** Toast nhỏ gọn (Animated, không cần thư viện ngoài). */
-export function Toast({ message, visible, onHide, duration = 2000 }: ToastProps) {
+/** Toast nhỏ gọn (Animated, không cần thư viện ngoài), safe-area aware và không che thanh điều hướng hoặc nút hành động đáy. */
+export function Toast({ message, visible, onHide, duration = 2000, bottom = 120 }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export function Toast({ message, visible, onHide, duration = 2000 }: ToastProps)
   if (!visible) return null;
 
   return (
-    <Animated.View style={[styles.toast, { opacity }]} accessibilityLiveRegion="polite">
+    <Animated.View style={[styles.toast, { bottom, opacity }]} accessibilityLiveRegion="polite">
       <Ionicons name="checkmark-circle" size={20} color="#4ADE80" />
       <Text style={styles.text}>{message}</Text>
     </Animated.View>
@@ -41,7 +42,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
-    bottom: 100,
+    zIndex: 9999,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,

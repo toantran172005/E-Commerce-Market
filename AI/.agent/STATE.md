@@ -1,67 +1,67 @@
-# Project: ECommerceApp   Stack: React Native 0.88, Expo Router ~58, React 19.3.0, TypeScript ~6.0.3, Node.js v22.14.0
+# Project: ECommerceApp   Stack: React Native 0.88, Expo Router ~58.0.26, React 19.3.0, TypeScript ~6.0.3, Firebase ^12.19.0, Node.js v22.14.0
 
-## Commands   build: npx expo export --platform android | test: npm test | lint: npm run typecheck | typecheck: npm run typecheck | run: npx expo start
+## Commands   build: npx expo export --platform android && npx expo export --platform web | test: npm run test:all | lint: npm run typecheck | typecheck: npm run typecheck | run: npx expo start
 
 ## Architecture
 - Entry point: `ECommerceApp/node_modules/expo-router/entry.js` -> `app/_layout.tsx`
 - Routing: Expo Router (file-based navigation in `app/`)
   - Tabs: `app/(tabs)/_layout.tsx` (`home.tsx`, `cart.tsx`, `favourite.tsx`, `account.tsx`)
   - Auth: `app/(auth)/login.tsx`, `app/(auth)/register.tsx`
-  - Flows: `product/[id].tsx`, `checkout.tsx`, `checkout-success.tsx`, `orders.tsx`, `order/[id].tsx`, `shipping-address.tsx`, `payment-method.tsx`, `notification.tsx`, `app-settings.tsx`, `help.tsx`
-- State & Business Logic:
-  - Context Providers: `AuthContext`, `CartContext`, `OrderContext`, `ThemeContext`
-  - Services: `CatalogService`, `VoucherService`, `OrderService`, `AuthService`, `ProfileService`
-  - Utilities: `pricing.ts`, `format.ts`, `cart.ts`
-  - Mock Layer: `src/mock/` with realistic Vietnam e-commerce seed data
+  - Flows: `product/[id].tsx`, `checkout.tsx`, `checkout-success.tsx`, `orders.tsx`, `order/[id].tsx`, `shipping-address.tsx`, `payment-method.tsx`, `notification.tsx`, `app-settings.tsx`, `help.tsx`, `update-user.tsx`
+- Layer Convention: Screen -> Context/Hook -> Service -> Firebase (with in-memory fallback)
+- AI Tooling Root: `ROOT/AI/` (all scripts, prompts, runs, state are strictly outside `ECommerceApp/`)
 
 ## SPEC STATUS
-- F-AUTH-01: User Login | COMPLETE | Verified in UI & `tests/services.test.mjs` (test 9, 10)
-- F-AUTH-02: User Registration | COMPLETE | Verified in `tests/services.test.mjs` (test 12)
-- F-AUTH-03: Guest Browsing Mode | COMPLETE | Verified in `tests/services.test.mjs` (test 11)
-- F-AUTH-04: Profile Management | COMPLETE | Verified in `app/update-user.tsx`
-- F-CAT-01: Home Screen | COMPLETE | Verified in `app/(tabs)/home.tsx` & Android Hermes bundle
-- F-CAT-02: Product Detail | COMPLETE | Verified in `app/product/[id].tsx`
-- F-CAT-03: Filter & Search | COMPLETE | Verified in `app/filter.tsx` & `CatalogService` tests (test 2, 3)
-- F-CART-01: Shopping Cart Management | COMPLETE | Verified in `tests/utils.test.mjs` (test 10-15)
-- F-CHECKOUT-01: Checkout Process | COMPLETE | Verified in `app/checkout.tsx` & `tests/services.test.mjs` (test 8, 14)
-- F-CHECKOUT-02: Checkout Confirmation | COMPLETE | Verified in `app/checkout-success.tsx`
-- F-ORD-01: Order History | COMPLETE | Verified in `tests/services.test.mjs` (test 13)
-- F-ORD-02: Order Details & Timeline | COMPLETE | Verified in `tests/services.test.mjs` (test 14, 15)
-- F-ACC-01: Account Center | COMPLETE | Verified in `app/(tabs)/account.tsx`
-- F-ACC-02: Address Book | COMPLETE | Verified in `app/shipping-address.tsx`
-- F-ACC-03: Payment Methods | COMPLETE | Verified in `app/payment-method.tsx`
-- F-ACC-04: Notifications | COMPLETE | Verified in `app/notification.tsx`
-- F-ACC-05: App Settings | COMPLETE | Verified in `app/app-settings.tsx`
-- F-ACC-06: Help & Support | COMPLETE | Verified in `app/help.tsx`
+- UC001 Đăng nhập: PARTIAL (Missing forgot password flow & exact SRS error message)
+- UC002 Quản lý tài khoản: COMPLETE
+- UC003 Cập nhật thông tin: PARTIAL (Pravatar placeholder -> real avatar picker/upload & size limit)
+- UC004 Cập nhật địa chỉ: PARTIAL (Structured address fields: province, district, ward, street)
+- UC005-UC009 Lọc & Tìm kiếm sản phẩm: COMPLETE
+- UC010 Xem chi tiết sản phẩm: PARTIAL (Needs Shopee-style specs & descriptions per mobile.docx B)
+- UC011-UC014 Giỏ hàng: COMPLETE
+- UC015 Đặt hàng và thanh toán: PARTIAL (Sold-out detection during checkout, payment-failure state)
+- UC016 Áp dụng voucher: PARTIAL (Category restrictions & cancel/change voucher)
+- UC017 Xác nhận đơn: PARTIAL (Receipt/invoice view modal)
+- UC018 Hủy đơn hàng: COMPLETE
+- UC019-UC021 Yêu thích: COMPLETE
+- BUG-A mobile.docx A: BROKEN (Nested buttons causing Web hydration/DOM warnings + Toast overlap)
+- FEAT-B mobile.docx B: MISSING (Shopee-style "CHI TIẾT SẢN PHẨM" & "MÔ TẢ SẢN PHẨM")
+- FEAT-C Product Images: PARTIAL (Picsum placeholders to be replaced with authentic tech URLs + fallback)
+- FEAT-REV Write Review Flow: MISSING (Review submission on delivered orders)
 
 ## Baseline
 - TypeScript Typecheck (`npm run typecheck`): 100% PASS (0 errors)
-- Test Suite (`npm test`): 30/30 PASS (15 utils tests + 15 services tests)
-- Bundler Build (`npx expo export --platform android`): 100% PASS (1299 modules bundled into `dist`)
+- Test Suite (`npm test`): 51/51 PASS (31 test suites, 0 failures)
+- Static Export: Android Hermes bundle PASS, Web export PASS
+- AI Relocation (Task D): Completed via commit `153ece8` with zero AI files remaining in `ECommerceApp/`
 
 ## BACKLOG
-- None remaining. All P0, P1, P2, and P3 tasks completed and verified.
+- [ ] P0-001 [WP-A] Fix nested <button> DOM violations app-wide and adjust Toast position to not overlap bottom action bar | `src/components/ProductCard.tsx`, `app/filter.tsx`, `app/notification.tsx`, `app/payment-method.tsx`, `app/(tabs)/home.tsx`, `app/(tabs)/favourite.tsx`, `app/order/[id].tsx`, `src/components/Toast.tsx` | Zero `validateDOMNesting` / `<button> cannot contain a nested <button>` console warnings on web
+- [ ] P1-001 [WP-B] Expand Product domain type and update realistic Vietnamese specification & description data | `src/types/index.ts`, `seed.mjs`, `src/mock/products.ts` | All products have `categoryPath`, `details`, `highlights`, `longDescription`, `warrantyPolicy`
+- [ ] P1-002 [WP-B] Implement Shopee-style "CHI TIẾT SẢN PHẨM" and "MÔ TẢ SẢN PHẨM" UI components on Product Detail screen | `app/product/[id].tsx`, `src/components/ProductSpecsTable.tsx`, `src/components/ProductDescriptionView.tsx` | Renders breadcrumb, specs table with stock status, collapsible description, warranty card
+- [ ] P1-003 [WP-C] Verify and curate stable HTTP 200 product images, add ImageFallback and gallery dots/swiping | `src/mock/products.ts`, `seed.mjs`, `src/components/ImageFallback.tsx` | All product image URLs return HTTP 200, broken images fallback gracefully
+- [ ] P1-004 [WP-UC001] Implement Forgot Password flow via Firebase sendPasswordResetEmail and exact SRS error messages | `app/(auth)/login.tsx`, `src/services/auth.service.ts` | Forgot password modal triggers reset email; invalid credentials show "Thông tin đăng nhập không chính xác"
+- [ ] P1-005 [WP-UC003] Implement real avatar picker using expo-image-picker with file size validation (<=5MB) and cancel confirmation | `app/update-user.tsx`, `src/services/profile.service.ts` | Users can pick photos from device library or camera; pravatar removed
+- [ ] P1-006 [WP-UC004] Support structured address fields (Tỉnh/Thành, Quận/Huyện, Phường/Xã, Địa chỉ chi tiết) | `src/types/index.ts`, `app/shipping-address.tsx`, `src/services/profile.service.ts` | Address modal has structured inputs with Vietnamese validations
+- [ ] P1-007 [WP-UC015-017] Strengthen checkout flow: sold-out detection, payment failure / "Chờ thanh toán", voucher category restriction, receipt/invoice view | `app/checkout.tsx`, `app/checkout-success.tsx`, `src/services/voucher.service.ts`, `src/services/order.service.ts` | Sold-out items blocked during checkout, vouchers validate categories, invoice view available
+- [ ] P2-001 [WP-REV] Implement Write Review flow for delivered orders with rating stars, feedback text, and optional photo | `app/order/[id].tsx`, `src/components/ReviewModal.tsx`, `src/services/catalog.service.ts` | Delivered orders have "Đánh giá" button that saves review to Firestore
+- [ ] P3-001 [WP-TEST] Comprehensive UC Test Suite (UC001-UC021) in `tests/uc/` passing 3 consecutive runs | `tests/uc/*.test.mjs`, `package.json` | 100% PASS for all UCs with terminal proof
 
 ## IN PROGRESS
-- None.
+- P0-001 [WP-A] Fix nested <button> DOM violations app-wide and adjust Toast position
 
 ## DONE
-- [x] P0-000 Bootstrap Zero-Dependency DeepSeek Runner | scripts/call_deepseek.py, ECommerceApp/scripts/call_deepseek.py | Verified connection to DeepSeek API | scripts/call_deepseek.py
-- [x] P1-001 Add test and typecheck scripts to package.json | ECommerceApp/package.json | npm test, npm run typecheck | e8d6af7
-- [x] P1-002 Create comprehensive utility test suite and fix Vietnamese phone validation regex | src/utils/format.ts, tests/utils.test.mjs | 15 unit tests added | e8d6af7
-- [x] P2-001 Create end-to-end service test suite covering catalog, voucher, auth, and order pipelines | tests/services.test.mjs | 15 service tests added | e8d6af7
-- [x] P3-001 Execute full verification pipeline (unit tests + typecheck + Hermes production bundler) | ECommerceApp/ | 30 tests PASS, tsc PASS, expo export PASS | e8d6af7
+- [x] P0-000 Task D AI Relocation | `ECommerceApp/scripts/`, `AI/scripts/`, `AI/prompts/`, `AI/runs/`, `AI/.agent/` | Zero AI references in ECommerceApp, tests pass | `153ece8`
 
 ## BLOCKED
 - None.
 
 ## DECISIONS
-- Used Node.js built-in test runner (`node:test` + `node:assert`) coupled with `tsx` runner to avoid heavy external dependencies while seamlessly supporting TypeScript directory imports.
-- Enforced strict character validation in `isValidPhoneVn` (`src/utils/format.ts`) before stripping non-digits to prevent strings with alphabetic noise from passing validation.
-- Preserved 100% backward compatibility of all existing components, hooks, and navigation stacks.
+- Separated card body pressable and card actions (e.g. favourite button) into siblings wrapped by a standard `<View>` to avoid React Native Web `<button> cannot contain a nested <button>` HTML error.
+- Installed `expo-image-picker` with `npx expo install expo-image-picker` to provide genuine native & web image picking without breaking Expo SDK 58 compatibility.
 
 ## TECH DEBT / KNOWN ISSUES
-- `src/firebaseConfig.ts`: Retained as an optional connector for future cloud Firebase integration when transitioning from mock state to live production server.
+- None.
 
 ## NEXT STEP
-- None. All requirements and verifications satisfied. Codebase is in production-ready state.
+- Execute P0-001: Fix nested buttons in `ProductCard.tsx`, `home.tsx`, `favourite.tsx`, `filter.tsx`, `notification.tsx`, `payment-method.tsx`, `order/[id].tsx`, and position `Toast.tsx`.
