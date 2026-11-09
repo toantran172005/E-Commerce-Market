@@ -1,0 +1,498 @@
+Need output 3 files with full source. Must write final answer only. Need produce exact full files.
+
+We need solve two issues.
+
+We have to modify:
+- app/shipping-address.tsx: add + Thêm on ScreenHeader right prop. Add ListFooterComponent big dashed add card. Both call openAddModal. Need inspect ScreenHeader props to ensure right type. We don't have component source, but assume ScreenHeader supports right maybe ReactNode or function? Need know. We need maybe use right prop as React.ReactNode. Existing shipping-address import ScreenHeader from components. In current code ScreenHeader used with title, onBack. Need add right. We need check likely component definition signature? Not provided. In app/payment-method.tsx ScreenHeader title only. Could infer supports right? Task says through prop right={...}. So use right={<Pressable ...>...}. Need ensure styles.
+
+- app/payment-method.tsx: brand colors and images. Need modify PaymentBrandOption interface add image. PAYMENT_BRANDS colors changed:
+  momo #D82D8B or #A50064, likely #D82D8B. image unsplash URL specified.
+  vietinbank #005596 or #0072CE. Use #005596 perhaps. image unsplash specified.
+  vietcombank #006837.
+  BIDV #003B70.
+  Agribank #8A151B or #981F26.
+  COD is not in PAYMENT_BRANDS currently only 5 options? It needs include COD? Requirement colors includes COD: màu cam app #FF5722. Currently PAYMENT_BRANDS has no cod. But methods can include COD default? Could be seeded somewhere not this file? We probably need add cod to PAYMENT_BRANDS? The add method modal has only 5 brand options, not COD. But requirement says COD color #FF5722. It may be used for fallback and getBrandMeta default. Should we add cod to PaymentBrandKey already includes 'cod'. PAYMENT_BRANDS currently lacks cod. We could add cod option? But adding a COD payment method via form? COD is not card/wallet and no detail/expiry? Might not be desired. But colors requirement includes COD. Maybe add to PAYMENT_BRANDS? Need inspect existing getBrandMeta default returns primary shortName 'COD'. If selectedMethod null uses 'PAY'? weird. Requirement "COD: Màu cam chủ đạo của ứng dụng (#FF5722)." Could use in getBrandMeta default. But maybe PAYMENT_BRANDS should include COD? Let's think.
+
+They ask Payment method screen: "Standardize brand colors ... COD orange". add method should save image and color of bank/wallet corresponding. "Ảnh thẻ đặc trưng thực tế" lists 5 only no COD. It doesn't mention COD image. In cardMockup, need display image background or overlay with brand color. "logo tên thương hiệu (MoMo, VCB, BIDV, VietinBank, Agribank)". No COD? Probably COD not a saved payment method, but can be default? Actually PaymentMethodType includes cod. There may be default cod method from context; getBrandMeta default handles cod. We need ensure COD uses orange #FF5722. Could update default to '#FF5722'.
+
+Need modify src/types/index.ts: PaymentMethod add color?: string; image?: string. Maybe PaymentBrand? Add optional fields. Keep old compatibility. Add:
+  color?: string;
+  image?: string;
+This is straightforward.
+
+Payment-method details:
+- PAYMENT_BRANDS array add image fields.
+- getBrandMeta should return color and shortName and maybe image? Currently returns { color, shortName }. Need for card background image. Could return image:string too.
+Need type maybe `interface BrandMeta { color: string; shortName: string; image?: string }`.
+
+Need in cardMockup: use Image. Current import lacks Image. Add Image from react-native. Use card background image overlay bán trong suốt. Requirements: display image background using <Image> as background or overlay semi-transparent combined with brand color, chip EMV yellow, logo tên thương hiệu, số thẻ hidden, etc. Current cardMockup is View background color. Need add Image. Could add `{cardImageUri ? <Image source={{ uri: cardImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}` and overlay `cardOverlay` absolute fill with `backgroundColor: 'rgba(0,0,0,0.35)'` maybe combine brand color? Need ensure brand color still visible. Could use overlay color with selectedBrandMeta.color + alpha? React Native cannot compute hex alpha easily, use `rgba(0,0,0,0.35)` or maybe `backgroundColor: selectedBrandMeta.color` with opacity? Requirement overlay bán trong suốt kết hợp màu thương hiệu. Could set `cardColorOverlay` absolute fill with backgroundColor selectedBrandMeta.color, opacity 0.5. But if image loaded, brand color overlay. Need fallback if no image: background remains brand color. We can set cardMockup background color brand color and overlay image + dark overlay. Good.
+
+Need include "logo tên thương hiệu" in card top. Currently shows text shortName. That's okay. Need maybe show as row. EMV chip already present.
+
+Need in methods.map: display thumbnail image or icon circle with brand color. Current optionIconBox with shortName text. We can add if method.image, show `<Image source={{ uri: meta.image }} style={styles.optionThumb} />` else current shortName text. Need preserve style.
+
+When adding method new: `addMethod` called with object. Need include image and color. Current addMethod accepts PaymentMethod without id, maybe fields are optional? Need inspect context? Not provided. PaymentMethod type has id required. addMethod probably create id. We can pass `color: brand.color, image: brand.image`. Since PaymentMethod updated optional color/image. Good.
+
+Need adjust addMethod object to include `color: brand.color, image: brand.image`. Also detail is `${brand.label} ${maskNumber(detailRaw)}`; for wallet momo maybe detail with phone masked not card. OK.
+
+Need adjust form field for COD? We'll maybe include COD in PAYMENT_BRANDS? Let's examine requirement 2: "Phương thức thanh toán (`app/payment-method.tsx` & `src/types/index.ts`)". It lists:
+1. Chuẩn hóa màu:
+   - MoMo...
+   - VietinBank...
+   - Vietcombank...
+   - BIDV...
+   - Agribank...
+   - COD...
+2. Hình ảnh thẻ đặc trưng thực tế for 5 no COD
+3. Hiển thị card cực đẹp & trực quan:
+   - cardMockup...
+   - danh sách...
+   - Khi người dùng thêm thẻ mới (nhập số thẻ và hạn dùng), phương thức mới được lưu kèm image và màu sắc của ngân hàng/ví tương ứng.
+
+So only add branded methods. COD is used getBrandMeta default method. We can update fallback color. No need add COD to PAYMENT_BRANDS, because it's not addable. But `PaymentBrandKey` includes cod maybe used? Could leave unused. Need maybe PAYMENT_BRANDS still five.
+
+Need add card image URLs exactly given. Could maybe use `image: 'https://images.unsplash.com/...'`.
+Could maybe image source removed? Use same.
+
+Need ensure TypeScript: `Image` import from 'react-native'; style type. `cardMockup` style maybe needs background image absolute. Add styles:
+  cardImage: { ...StyleSheet.absoluteFillObject, opacity: 0.55 },
+  cardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.18)' } maybe.
+  optionThumb: { width: 42, height: 42, borderRadius: radius.md }.
+
+Need maybe `cardMockup` background color still selectedBrandMeta.color; if image URI, set overlay. Use `image` referencing selectedBrandMeta.image.
+
+Need careful: selectedMethod may be null if methods exist? selectedMethod selection. In cardMockup selectedBrandMeta from selectedMethod. If methods.length > 0 always selectedMethod is default or first? If no. Okay.
+
+Need for cardMockup with image but if cod no image maybe null. Good.
+
+Need in `getBrandMeta`: Include image for each. For fallback COD color orange #FF5722, image undefined. Need also getBrandMeta from method.name. Should use PAYMENT_BRANDS lookup ideally? But methods maybe have name and stored color/image. We can use `method.color` if available fallback. We can simplify:
+function getBrandMeta(method: PaymentMethod | null): { color: string; shortName: string; image?: string } {
+  if (!method) return { color: colors.primary, shortName: 'PAY' };
+  const brand = PAYMENT_BRANDS.find((b) => b.label === method.name);
+  const shortName = brand?.shortName ?? (method.type === 'cod' ? 'COD' : method.name.slice(0, 4));
+  return {
+    color: method.color ?? brand?.color ?? colors.primary,
+    shortName: brand?.shortName ?? shortName,
+    image: method.image ?? brand?.image,
+  };
+}
+This uses PAYMENT_BRANDS. But PAYMENT_BRANDS labels exact. For COD method name maybe "COD" not in brands, method.type cod -> 'COD'. color default colors.primary (#FF5722). Good.
+Need ensure shortName for card brand maybe method.name not label? currently name is label. Fine.
+
+However if method has `color` and `image`, use them. That satisfies saved has corresponding.
+
+Could alternatively define maps as single source. Since PAYMENT_BRANDS already has color and image. getBrandMeta finds. Need avoid duplicate current switch. We can refactor. Good.
+
+Need update `PAYMENT_BRANDS` type `PaymentBrandOption` include `image: string;`. Update colors:
+- momo color: '#D82D8B', image url
+- vietcombank color: '#006837', image url
+- bidv color: '#003B70', image url
+- vietinbank color: '#005596', image url
+- agribank color: '#8A151B', image url
+
+Need maybe order array as before: momo, vietcombank, bidv, vietinbank, agribank. Fine.
+
+Need card number formatting:
+Current cardNumber:
+selectedMethod?.type === 'card'
+  ? selectedMethod.detail
+  : wallet ? selectedMethod.detail : 'Thanh toán khi nhận hàng'
+But issue requirement "số thẻ che bảo mật •••• •••• •••• 1234". Current detail maybe `VietinBank •••• 1234` due add detail including `brand.label maskNumber`. It does not show full. In card list current detail includes brand label. Maybe okay? But cardMockup should show just number. Better display `maskNumber(selectedMethod?.detail ?? '')`? Detail includes brand label. We need display card number secure format. The add method currently sets detail = `${brand.label} ${maskNumber(detailRaw)}`. So detail = "VietinBank •••• 1234". In cardMockup we can just use `selectedMethod?.detail` which shows "VietinBank •••• 1234". But requirement says number `•••• •••• •••• 1234`; maybe need `getDisplayDetail` to extract last masked. Or change add method detail? Hmm payment method type id. In methods.map optionSubtitle currently shows method.detail. Requirement says each row displays thumbnail image small together name and card number. Existing detail does that. For cardMockup, could show detail as is but brand name already elsewhere. Better implement helper:
+```
+function getCardNumber(method: PaymentMethod | null): string {
+  if (!method) return '•••• •••• •••• 1234';
+  if (method.type === 'cod') return 'Thanh toán khi nhận hàng';
+  if (method.type === 'wallet') return method.detail; // maybe "MoMo •••• 1234"? Could display detail.
+  const last4 = method.detail.replace(/\s/g, '').replace(/[^0-9]/g, '').slice(-4); // But detail includes text and bullets. Could use maskNumber? Wait maskNumber takes raw removing spaces and slice(-4). But if detail contains bullet "••••" not digits and brand label, last4 may include bullets? It strips all whitespace but not bullet, so last4 maybe "1234" only if no bullet after digits? For detail "VietinBank •••• 1234": remove spaces -> "VietinBank••••1234"; slice(-4) "1234". Then return `•••• •••• •••• ${last4}`. Nice.
+}
+```
+Maybe add helper:
+```
+function getCardLabel(method: PaymentMethod | null): string {
+  if (!method) return '•••• •••• •••• 1234';
+  const last4 = method.detail.replace(/\s/g, '').replace(/[^0-9]/g, '').slice(-4);
+  if (!last4) return method.detail;
+  return `•••• •••• •••• ${last4}`;
+}
+```
+But for wallet maybe detail includes masked phone. Could still want show detail maybe wallet number. Requirement says card number secure. Could use this for card and wallet? For wallet "Ví MoMo •••• 1234" maybe not phone. Could preserve if wallet: method.detail. But cardMockup can display `method.type === 'card' ? formatCardNumber(method.detail) : method.detail`. However for COD display "Thanh toán khi nhận hàng". Good.
+
+Need maybe in addMethod detail currently includes brand label. Could keep. Then helper for card number extracts digits. Good.
+
+Need add image in cardMockup. `const selectedBrandMeta = getBrandMeta(selectedMethod);` now includes image. Use:
+```
+<View style={[styles.cardMockup, { backgroundColor: selectedBrandMeta.color }]}>
+  {selectedBrandMeta.image ? (
+    <Image source={{ uri: selectedBrandMeta.image }} style={styles.cardImage} resizeMode="cover" />
+  ) : null}
+  <View style={styles.cardOverlay} />
+  ...
+```
+Need ensure overlay above image but below content. Add `cardImage` absolute fill and `cardOverlay` absolute fill with maybe `backgroundColor: 'rgba(0, 0, 0, 0.22)'`. But content `cardTopRow` etc after overlay in source order works.
+
+Need maybe `optionIconBox` if image:
+```
+{meta.image ? (
+  <Image source={{ uri: meta.image }} style={styles.optionThumb} />
+) : (
+  <Text style={styles.optionIconText}>{meta.shortName}</Text>
+)}
+```
+Could also keep background color.
+
+Need update styles.
+
+Potential issue: `ScreenHeader` right prop may accept function with `color`? Need if not. We can use right as React.ReactNode. Let's see typical custom ScreenHeader might be:
+```
+export function ScreenHeader({ title, onBack, right, ... }) {
+...
+{right ? right : <View/>}
+```
+So okay. We need import maybe `TouchableOpacity`? Shipping only imports Pressable. Use Pressable.
+
+Shipping modifications:
+- `openAddModal` already defined before return. Add right prop to ScreenHeader:
+```
+<ScreenHeader
+  title="Địa chỉ nhận hàng"
+  right={
+    <Pressable onPress={openAddModal} style={({pressed}) => [styles.headerAddBtn, pressed && styles.pressed]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Thêm địa chỉ mới">
+      <Ionicons name="add" size={22} color={colors.primary} />
+      <Text style={styles.headerAddText}>Thêm</Text>
+    </Pressable>
+  }
+/>
+```
+Need define `headerAddBtn`, `headerAddText` styles. Could maybe include text next to icon. Fine.
+
+- Add `ListFooterComponent` in FlatList. Should render always when addresses length > 0? If empty, ListEmptyComponent already has button. Could avoid duplicate? Requirement "cuối danh sách địa chỉ" likely only when list has addresses. Use:
+```
+ListFooterComponent={
+  !loading && addresses.length > 0 ? (
+    <Pressable onPress={openAddModal} style={({pressed}) => [styles.addNewCard, pressed && styles.pressed]}>
+      <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+      <Text style={styles.addNewCardText}>Thêm địa chỉ nhận hàng mới</Text>
+    </Pressable>
+  ) : null
+}
+```
+Need styles addNewCard, addNewCardText dashed border highlight.
+
+Could potentially use `ListFooterComponent={renderFooter}` function. Inline okay.
+
+Need ensure when empty, EmptyState has actionLabel and onAction. Good.
+
+Need formatPhone etc unchanged.
+
+Now payment-method: Also maybe need import Image. Need add `StyleSheet.absoluteFillObject`? In style use `...StyleSheet.absoluteFillObject` but StyleSheet imported. Good.
+
+Need maybe update `src/types/index.ts` with fields. Minimal.
+
+Need verify compile. Type issues:
+- In `getBrandMeta`, `PAYMENT_BRANDS.find` etc. Return type include image optional. `method.image ?? brand?.image` might type string|undefined, but `brand?.image` maybe string|undefined. okay.
+- In card mockup: selectedMethod might null, selectedBrandMeta defined. If methods.length > 0 not null.
+- FlatList `ListHeaderComponent` can be element or component type. Currently `listHeader` maybe Text or undefined. okay.
+- `ListFooterComponent` element? FlatList prop type `ComponentType | ReactElement | null`; inline element fine.
+- ScreenHeader `right` prop maybe expects ReactNode or () => ReactNode. Need ensure our element accepted. If ScreenHeader right maybe typed `right?: React.ReactNode`. If not maybe expects function? But task explicitly says right prop. To be safe, could pass a function? Hmm typical custom ScreenHeader might have:
+```
+right?: () => React.ReactNode;
+```
+If right is function, then we would pass `right={() => <Pressable ...>}`. But we don't know. Need infer from existing code? Search from task no. In app shipping maybe no right usage. In payment none. Common pattern in this code: `ScreenHeader title="..." onBack={closeModal}`. Could support `right` prop maybe `right?: React.ReactNode;` They said "thông qua prop right={...}" maybe likely pass element. We'll use element. But to maximize compatibility if component expects ReactNode, okay.
+
+Need maybe `ScreenHeader` could render right without color. Fine.
+
+Need full source output only.
+
+Let's craft files. Need make sure no syntax errors.
+
+Let's plan payment-method entire file. Start from existing with modifications.
+
+We'll rewrite carefully.
+
+Potential issue with `addMethod` argument: context addMethod likely expects type, name, detail, expiry, isDefault, maybe not color/image support because types updated. Fine.
+
+Need import Image in react-native. Add to destructuring:
+```
+  Image,
+  Modal,
+...
+```
+
+Define interface PaymentBrandOption:
+```
+interface PaymentBrandOption {
+  key: PaymentBrandKey;
+  label: string;
+  type: PaymentMethodType;
+  color: string;
+  shortName: string;
+  placeholder: string;
+  image: string;
+}
+```
+
+PAYMENT_BRANDS:
+```
+  { momo ... color '#D82D8B', image 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=600&auto=format&fit=crop&q=80' }
+...
+```
+Need strings exactly.
+
+For vietinbank image: `'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&auto=format&fit=crop&q=80'`.
+vietcombank: `'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600&auto=format&fit=crop&q=80'`.
+bidv: `'https://images.unsplash.com/photo-1589758438368-0ad531db3366?w=600&auto=format&fit=crop&q=80'`.
+agribank: `'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80'`.
+
+`getBrandMeta`:
+```
+function getBrandMeta(method: PaymentMethod | null): { color: string; shortName: string; image?: string } {
+  if (!method) return { color: colors.primary, shortName: 'PAY' };
+
+  const brand = PAYMENT_BRANDS.find((b) => b.label === method.name);
+  const fallbackShortName = method.type === 'cod' ? 'COD' : method.name.slice(0, 4).toUpperCase();
+
+  return {
+    color: method.color ?? brand?.color ?? colors.primary,
+    shortName: brand?.shortName ?? method.color ? fallbackShortName : fallbackShortName, // hmm
+    image: method.image ?? brand?.image,
+  };
+}
+```
+Simplify:
+```
+  const shortName = brand?.shortName ?? (method.type === 'cod' ? 'COD' : method.name.slice(0, 4).toUpperCase());
+  return {
+    color: method.color ?? brand?.color ?? colors.primary,
+    shortName,
+    image: method.image ?? brand?.image,
+  };
+```
+Fine. Need if method.color optional, `??` returns primary if null/undefined. Good.
+
+Maybe `getPaymentIcon` no change.
+
+Add helper:
+```
+function getCardNumber(method: PaymentMethod | null): string {
+  if (!method) return '•••• •••• •••• 1234';
+  if (method.type === 'cod') return 'Thanh toán khi nhận hàng';
+  const last4 = method.detail.replace(/\s/g, '').replace(/[^0-9]/g, '').slice(-4);
+  if (!last4) return method.detail;
+  return `•••• •••• •••• ${last4}`;
+}
+```
+For wallet, detail might be "Ví MoMo •••• 1234"? last4 digits maybe "1234" (from phone). Good enough. But if wallet detail from add is `${brand.label} ${maskNumber(detailRaw)}` where momo detailRaw phone. last4 digits from phone. display secure number. That's okay. But if card/ wallet, we may want maybe display brand label in separate brand row. Fine.
+
+Need modify `handleAddMethod` add color/image:
+```
+      await addMethod({
+        type: brand.type,
+        name: brand.label,
+        detail: `${brand.label} ${maskNumber(detailRaw)}`,
+        expiry,
+        isDefault: false,
+        color: brand.color,
+        image: brand.image,
+      });
+```
+Wait PaymentMethod requires id but addMethod likely `Omit<PaymentMethod,'id'>`. Passing color/image okay.
+
+Need maybe use `setSelectedId(null)` after add? Current doesn't. Could not relevant.
+
+Card mockup modifications:
+```
+<View style={[styles.cardMockup, { backgroundColor: selectedBrandMeta.color }]}>
+  {selectedBrandMeta.image ? (
+    <Image
+      source={{ uri: selectedBrandMeta.image }}
+      style={styles.cardImage}
+      resizeMode="cover"
+    />
+  ) : null}
+  <View style={styles.cardOverlay} />
+
+  <View style={styles.cardTopRow}>
+    ...
+```
+Need define `cardImage`, `cardOverlay` in styles. `cardImage`:
+```
+  cardImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.5,
+  },
+  cardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.24)',
+  },
+```
+But if mode cover and opacity perhaps image partly visible. Good.
+
+Need cardNumber text uses helper:
+```
+<Text style={styles.cardNumber}>
+  {selectedMethod?.type === 'card'
+    ? getCardNumber(selectedMethod)
+    : selectedMethod?.type === 'wallet'
+      ? getCardNumber(selectedMethod)
+      : 'Thanh toán khi nhận hàng'}
+</Text>
+```
+Could just `{selectedMethod ? getCardNumber(selectedMethod) : '•••• •••• •••• 1234'}` but for COD should display COD phrase. `getCardNumber` handles cod. So:
+```
+<Text style={styles.cardNumber}>{getCardNumber(selectedMethod)}</Text>
+```
+But when selectedMethod null? In methods.length > 0 branch selectedMethod cannot null due selected. okay. If somehow null getCardNumber returns default. Good.
+
+But `getCardNumber` for wallet maybe masks last 4 digits from phone, is that acceptable? Maybe requirement "số thẻ che bảo mật" for card. For wallet maybe use detail. could leave. Fine.
+
+Option row `meta = getBrandMeta(method)`. In optionIconBox:
+```
+{meta.image ? (
+  <Image source={{ uri: meta.image }} style={styles.optionThumb} />
+) : (
+  <Text style={styles.optionIconText}>{meta.shortName}</Text>
+)}
+```
+Need style.
+
+Need maybe option subtitle currently `method.detail` maybe includes branded label. Good.
+
+Styles update:
+- Add cardImage and cardOverlay.
+- Add optionThumb.
+Maybe adjust `cardMockup` padding? no.
+
+Now shipping-address full file. Need add headerAddBtn styles and footer card.
+
+Let's craft:
+
+At import ScreenHeader props no issue.
+Add:
+```
+      <ScreenHeader
+        title="Địa chỉ nhận hàng"
+        right={
+          <Pressable
+            onPress={openAddModal}
+            style={({ pressed }) => [styles.headerAddBtn, pressed && styles.pressed]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Thêm địa chỉ mới"
+          >
+            <Ionicons name="add" size={22} color={colors.primary} />
+            <Text style={styles.headerAddText}>Thêm</Text>
+          </Pressable>
+        }
+      />
+```
+
+FlatList:
+```
+        ListFooterComponent={
+          !loading && addresses.length > 0 ? (
+            <Pressable
+              onPress={openAddModal}
+              style={({ pressed }) => [styles.addNewCard, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Thêm địa chỉ nhận hàng mới"
+            >
+              <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+              <Text style={styles.addNewCardText}>Thêm địa chỉ nhận hàng mới</Text>
+            </Pressable>
+          ) : null
+        }
+```
+Need maybe if loading addresses length 0, ListFooterComponent null. Good.
+
+Styles add:
+```
+  headerAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  headerAddText: {
+    marginLeft: spacing.xs,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  addNewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 64,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    marginTop: spacing.sm,
+  },
+  addNewCardText: {
+    marginLeft: spacing.sm,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+```
+Need `minHeight` property ok.
+
+Potential issue `right` prop might not accept style; okay.
+
+Need maybe `ScreenHeader` style expects right node with no text? Fine.
+
+Need `src/types` change:
+```
+export interface PaymentMethod {
+  id: string;
+  type: PaymentMethodType;
+  name: string;
+  /** Ví dụ "Visa •••• 4242". */
+  detail: string;
+  expiry?: string;
+  isDefault: boolean;
+  /** Màu thương hiệu, ví dụ #D82D8B cho MoMo. */
+  color?: string;
+  /** URL ảnh thẻ ngân hàng/ví. */
+  image?: string;
+}
+```
+Need ensure no other changes.
+
+Now full payment-method file. Need not use original exact. We'll output. Must ensure no missing imports.
+
+Let's construct payment-method with modifications.
+
+Potential issue TypeScript strict: `meta.image` type string|undefined. `<Image source={{ uri: meta.image }}>` expects string; JSX expression meta.image inside ternary ensures string? Type narrowing in JSX? `meta.image ? <Image source={{ uri: meta.image }} /> : ...` TS narrows meta.image to string inside true branch? Yes.
+
+In cardMockup selectedBrandMeta.image in JSX true branch narrows.
+
+`getCardNumber` uses replace and slice. no issue.
+
+Need maybe update `optionThumb` style: width 42 height 42 borderRadius radius.md (12). Good.
+
+Need maybe in list of methods, if image is present, background color not necessary but still set. Fine.
+
+Potential issue current `PAYMENT_BRANDS` type has `type: PaymentMethodType`. Fine.
+
+Potential issue `getBrandMeta` returns image maybe from `method.image ?? brand?.image`. If method.image is undefined and brand?.image undefined, fine.
+
+Need maybe `getBrandMeta` for `selectedMethod` in card preview: if selectedMethod has no saved color but name matches brand? fine.
+
+Need maybe `cardOverlay` placed above image and below content. We need ensure content visible; content is later. Fine.
+
+Let's produce full files.
+
+Double-check no missing brace. We'll rewrite file fully.
+
+For shipping file, ensure all existing code retained. We'll rewrite with added bits.
+
+Let's compose final answer exactly.
+
+Need include `=== FILE: ...` and `=== END FILE ===`. Only files. No explanation. Final answer with three files. Ensure code blocks? User wants "Trả về danh sách file cần sửa dưới dạng: === FILE ...". We can output plain. Need maybe no markdown code fences except file content. We'll use exact.
+
+Let's craft payment-method full. Need maybe maintain `selectedBrandMeta` after compute. We'll insert image.
+
+Let's write in final.

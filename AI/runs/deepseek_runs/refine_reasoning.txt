@@ -1,0 +1,441 @@
+Chúng ta cần xử lý 5 khu vực theo yêu cầu. Hãy phân tích từng file hiện trạng và yêu cầu để sửa đổi. Mục tiêu: "Cập nhật và tinh chỉnh chuẩn chỉnh 5 khu vực giao diện và logic theo yêu cầu mới nhất". Đầu ra là danh sách các file cần thay đổi với toàn bộ mã nguồn đầy đủ. Không giải thích ngoài lề.
+
+Cần xem xét các file liên quan:
+1. `app/(tabs)/home.tsx`: Xoá hàng nút/chip filter danh mục, chỉ giữ categoriesRow. Xử lý active state khi bấm icon danh mục: nếu đang chọn thì bỏ chọn, nếu chưa chọn thì lọc theo danh mục đó. Active state đổi viền/màu primary nổi bật.
+
+Hiện tại `home.tsx` có `filterChips`, `handleChipPress`, `Chip` import, `chipsRow` style, section header "Danh mục sản phẩm" rồi categoriesRow, sau đó chipsRow. Yêu cầu bỏ chipsRow hoàn toàn, bỏ `filterChips`, `handleChipPress`, import `Chip`, style `chipsRow`. Cũng cần sửa `handleSelectCategory` để xử lý toggle logic: `setCategoryIds` nếu đang chọn thì bỏ chọn (đặt `[]`), nếu chưa chọn thì đặt `[categoryId]`.
+
+Nhưng lưu ý: vẫn cần dùng `filters.categoryIds` từ context. Cần đảm bảo `extraData` phù hợp. Import hiện tại: `Chip` từ `../../src/components/Chip` cần xoá. Đồng thời xử lý active state của category item: đã có `active` dựa trên `filters.categoryIds.includes(cat.id)`, nhưng với yêu cầu toggle, khi bấm vào active sẽ set `[]`. Lưu ý `homeCategories` có 4 danh mục, nếu chọn 1 cái, các cái khác sẽ không active vì `filter.categoryIds` chỉ chứa 1 id (hoặc rỗng nếu chọn lại). Nhưng đúng yêu cầu: "Nếu danh mục đó đang chọn thì bỏ chọn (hiển thị tất cả sản phẩm)." Vậy logic setCategoryIds: 
+```
+setCategoryIds(prev => prev.includes(categoryId) ? [] : [categoryId])
+```
+Nhưng lưu ý có thể có nhiều category được chọn đồng thời khi sử dụng filter từ màn hình filter. Tuy nhiên ở màn home, yêu cầu chỉ là chọn một danh mục từ hàng icon, nên có thể đơn giản hóa. Tuy nhiên nếu đang có nhiều category chọn (ví dụ từ filter) thì bấm vào icon sẽ thay thế toàn bộ bằng 1 cái? Hay toggle chỉ cho cái đó? Yêu cầu: "Khi người dùng bấm vào một icon danh mục: Nếu danh mục đó đang chọn thì bỏ chọn (hiển thị tất cả sản phẩm). Nếu chưa chọn thì lọc sản phẩm theo danh mục đó." Điều này ngụ ý mỗi lần chỉ chọn một danh mục (vì bỏ chọn tất cả nếu chọn lại). Nhưng có thể hiểu là nếu đang chọn nhiều (từ filter) thì bấm vào một cái không phải đang chọn sẽ lọc theo cái đó (thay thế), còn bấm vào cái đang chọn sẽ bỏ chọn tất cả. Điều này khá hợp lý. Vậy implement: `setCategoryIds(prev => prev.includes(categoryId) ? [] : [categoryId])`. Tuy nhiên nếu `prev` bao gồm nhiều và `categoryId` không nằm trong prev, thì set lại `[categoryId]`. Nếu `categoryId` nằm trong prev (dù prev có nhiều) thì set `[]`. Điều này thỏa mãn: bấm cái đang chọn (nằm trong prev) -> bỏ chọn tất cả, hiển thị tất cả sản phẩm. Còn bấm cái chưa chọn -> lọc theo cái đó.
+
+Cần xóa `handleChipPress` và `filterChips`, `Chip` import. Style cũng xóa `chipsRow`.
+
+2. `app/notification.tsx`: Yêu cầu:
+- Bỏ phần tabs ngang phân loại (Tất cả, Đơn hàng, Khuyến mãi, Hệ thống, Đánh giá). Chỉ hiển thị danh sách thông báo thống nhất, không lọc.
+- Click thông báo: Đánh dấu đã đọc và hiện modal popup chi tiết ngay tại chỗ, không điều hướng.
+- Modal hiển thị tiêu đề, ngày giờ, nội dung đầy đủ (message), icon minh hoạ. Có nút "Xác nhận"/"Đã hiểu" để đóng.
+- Phần đáy (bottom) bo tròn và đệm an toàn mượt mà, không bị phẳng lì/cắt cụt.
+- Vẫn giữ header, danh sách, footer "Xong".
+
+Hiện tại `notification.tsx` có tabs, `activeTab`, `filteredNotifications`; `handlePressNotification` điều hướng đi nơi khác. Cần sửa:
+- Xóa tabs UI, xóa state `activeTab`, `TABS`, `TabKey`.
+- Sửa `filteredNotifications` thành `notifications` trực tiếp.
+- Sửa `handlePressNotification`: gọi `markAsRead`, rồi set `selectedNotification` để hiển thị modal. Thay vì điều hướng.
+- Thêm state `selectedNotification` và modal. Cần xây dựng Modal chi tiết.
+- Modal hiển thị tiêu đề, ngày giờ định dạng (formatRelativeTime hoặc formatDate), nội dung đầy đủ `item.message`, icon minh hoạ (dựa vào NOTIFICATION_META), nút "Đã hiểu" để đóng.
+- Bottom: style `footer` hiện có paddingBottom = insets.bottom + 12, có borderTop, bo tròn? Yêu cầu "bo tròn hẳn và xử lý khoảng cách đệm (padding + safe area insets) mượt mà, không bị phẳng lì hay cảm giác bị cắt cụt." Hiện footer là View chứa PrimaryButton, bo tròn có thể thêm `borderTopLeftRadius` và `borderTopRightRadius`? Thực tế footer hiện tại là phần dưới cùng của màn hình, nếu bo tròn thì trông giống bottom sheet. Yêu cầu: "Phần đáy (bottom): Làm cho bo tròn hẳn và xử lý khoảng cách đệm (padding + safe area insets) mượt mà, không bị phẳng lì hay cảm giác bị cắt cụt." Nghĩa là làm cho footer có bo tròn các góc trên (và có thể cả dưới? vì safe area). Đơn giản là thêm style `borderTopLeftRadius: radius.lg`, `borderTopRightRadius: radius.lg`, có thể thêm `overflow: 'hidden'` để nội dung bên trong bo theo. Và padding bottom dùng `insets.bottom + spacing.md` thay vì `+12` (dùng token spacing). Chỉnh style `footer`: `borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg`. Có thể thêm background `colors.card`, borderTopWidth. Padding top hiện `spacing.md`, chấp nhận. Nhưng cần đảm bảo footer không bị cắt. Hiện footer có paddingBottom tính động, OK.
+
+Cũng nên xóa import ScrollView vì không dùng nữa. Hiện import ScrollView, FlatList đang sử dụng FlatList. ScrollView dùng cho tabs, sau khi xóa tabs thì không cần ScrollView. Xóa import `ScrollView`.
+
+Modal chi tiết: Sử dụng React Native `Modal`. Import `Modal`, `Text`, `View`, `Pressable`, `StyleSheet` (đã có). Cần thêm component Modal. Hiện chưa import Modal trong file notification.tsx. Thêm import Modal.
+
+Một lưu ý: `formatRelativeTime` đổi thành string, đã có `formatDate` import. Modal hiển thị ngày giờ: có thể dùng `formatDate(item.createdAt)` hoặc `formatRelativeTime`. Nên hiển thị đầy đủ: dùng `formatDate` hoặc `formatRelativeTime`? Yêu cầu "ngày giờ", nên dùng `formatDate` (đã import). Có thể thêm cả giờ? `formatDate` có thể chưa bao gồm giờ, nhưng không sao.
+
+Cần đảm bảo UI: Danh sách vẫn dùng FlatList, EmptyState, LoadingView. Không cần tabs.
+
+3. `app/(tabs)/account.tsx`: Yêu cầu bỏ hoàn toàn Favourites:
+- Xoá ô thống kê yêu thích (Favourites stat box) trong statsRow.
+- Xoá dòng menu "Danh sách yêu thích" trong orderItems.
+
+Hiện tại có import `useFavourites` và `useFavourites()` trả về `favourites`. Dùng để hiển thị số yêu thích và menu. Cần xóa:
+- Import `useFavourites`.
+- `const { favourites } = useFavourites();`
+- Trong `statsRow` hiện có 2 Pressable: Đơn hàng và Yêu thích. Cần xóa Pressable yêu thích.
+- Trong `orderItems`, có mục `favourites` (id, icon, title, subtitle, onPress tới `/(tabs)/favourite`). Xóa mục đó.
+- Đồng thời cần xóa `favouriteSubtitle` constant vì không còn sử dụng.
+- Điều chỉnh `statsRow` có thể còn 1 ô (đơn hàng) hoặc giữ 1 ô với flex:1; nên sửa style `statsRow` có thể giữ 2 cột? Nếu chỉ còn 1 ô, có thể giữ 1 ô full width? Yêu cầu không nói gì về bố cục, chỉ bỏ ô yêu thích. Vậy chỉ cần xóa Pressable yêu thích. `statsRow` vẫn là flexDirection row, gap; trong trường hợp chỉ còn 1 statCard, nó sẽ chiếm 1 cột flex:1, chiếm toàn bộ chiều rộng. Có thể chấp nhận. Có thể thêm `flex: 1` cho statCard đơn. Không cần thay đổi style.
+
+Lưu ý: trong `statsRow`, có câu `accessibilityLabel={`${favourites.length} yêu thích`}` của Pressable yêu thích, xóa.
+
+Xóa import `useFavourites` ở đầu.
+
+4. Payment methods:
+- `src/mock/paymentMethods.ts`: sửa dữ liệu ban đầu: chỉ có COD (Thanh toán khi nhận hàng) là mặc định, không có thẻ hay ví nào lưu sẵn. Tức `MOCK_PAYMENT_METHODS` chỉ có 1 phần tử COD với `isDefault: true`. Kiểu `PaymentMethod` vẫn giữ.
+- `app/payment-method.tsx`: cần điều chỉnh:
+  + Chỉ hỗ trợ 3 hình thức: Ví MoMo, Thẻ ngân hàng (4 ngân hàng cụ thể: Vietcombank, BIDV, VietinBank, Agribank), COD (Thanh toán tiền mặt khi nhận hàng). Tức không có ZaloPay, không có Visa/Mastercard tổng quát. Trong modal thêm, cho phép chọn thêm Ví MoMo hoặc 1 trong 4 ngân hàng (không có ZaloPay, không có Thẻ Visa/Mastercard generic). Form đơn giản: chỉ cần nhập Số thẻ/Số tài khoản và Hạn sử dụng (MM/YY) (đối với MoMo thì nhập Số điện thoại liên kết). Ảnh thẻ thật hoặc card graphic thực tế của từng ngân hàng/MoMo được tải lên danh sách. Cần xử lý hiển thị logo/ảnh đặc trưng.
+  + Dữ liệu ban đầu không có thẻ/ví lưu sẵn, chỉ COD. Nhưng `MOCK_PAYMENT_METHODS` sẽ sửa. Tuy nhiên cần kiểm tra: Context `PaymentMethodsContext` gọi `ProfileService.listPaymentMethods()` và set `methods`. Có thể service trả về data từ mock hoặc từ bộ nhớ. Chúng ta chỉ cần sửa `paymentMethods.ts` cho mock.
+  + Modal Thêm thẻ/ví mới: thay vì `formType` tự do, giờ giới hạn các lựa chọn: MoMo hoặc 4 ngân hàng. Có thể dùng một danh sách các `PaymentMethod` presets (type: 'wallet' cho MoMo, type: 'card' cho từng ngân hàng, type: 'cod' không cho thêm). Trong giao diện, dùng các nút chọn có thể là horizontal scroll hoặc grid. Khi chọn MoMo, form nhập: "Số điện thoại liên kết" và "Hạn sử dụng (MM/YY)"? Yêu cầu: "Chỉ cần nhập Số thẻ/Số tài khoản và Hạn sử dụng (MM/YY) (đối với MoMo thì nhập Số điện thoại liên kết)." Nghĩa là form gồm 2 field: Số thẻ/SĐT và Hạn. Đối với thẻ ngân hàng, field đầu là Số thẻ, field thứ hai là Hạn. Đối với MoMo, field đầu là SĐT, field thứ hai là Hạn. Tuy nhiên "Hạn sử dụng" với MoMo có vẻ lạ, nhưng yêu cầu nói "Hạn sử dụng (MM/YY)" cho cả, và đối với MoMo chỉ thay field đầu là SĐT. Vậy vẫn giữ 2 field.
+  + Trong danh sách hiển thị: cần hiển thị logo/ảnh đặc trưng cho từng ngân hàng và MoMo. Hiện tại trong danh sách chỉ hiển thị icon card/wallet. Cần cải thiện: hiển thị card graphic thực tế, nhưng có thể dùng icon Ionicons đại diện? Yêu cầu: "có màu hồng đặc trưng và ảnh thẻ/logo MoMo thật", "kèm ảnh thẻ thật hoặc card graphic nhận diện thương hiệu thực tế của từng ngân hàng". Tuy nhiên không được dùng thư viện ngoài, chỉ dùng React Native core, Ionicons, có thể dùng hình ảnh local? Nhưng không có asset. Có thể dùng các View với màu sắc đặc trưng và chữ viết tắt? Nhưng yêu cầu "ảnh thẻ thật hoặc card graphic nhận diện thương hiệu thực tế". Không thể tải ảnh thật từ internet vì không có nguồn và không đảm bảo. Chúng ta có thể tạo card graphic đơn giản bằng View, Text với màu thương hiệu và tên viết tắt. Điều này có thể chấp nhận. Cần bổ sung thông tin `brandColor` hoặc `logo`? Có thể thêm trường `brand?: 'momo' | 'vietcombank' | 'bidv' | 'vietinbank' | 'agribank'` vào `PaymentMethod`? Nhưng type hiện tại không có. Chúng ta có thể thêm trường optional `brand?: string` vào `PaymentMethod` type (mở rộng). Tuy nhiên yêu cầu "Chỉ được dùng thư viện đã có, không thêm thư viện". Việc thêm trường optional trong `types/index.ts` là cần thiết để lưu thông tin brand, giúp hiển thị logo. Cần cập nhật `PaymentMethod` type để có `brand?: string` và `brandColor?: string` (tùy chọn). Hoặc có thể dựa vào `name` để suy ra, nhưng dễ hơn nếu thêm trường. Vì là mock, chúng ta có thể thêm trường `brand?: 'momo' | 'vietcombank' | 'bidv' | 'vietinbank' | 'agribank'` vào `PaymentMethod`. Nhưng cần cập nhật context không sao. Tuy nhiên có thể không muốn thay type. Một cách: dùng `name` để xác định brand. Nhưng cần chính xác. Tôi nghĩ nên thêm trường optional `brand?: string` vào `PaymentMethod` type. Trong file `payment-method.tsx`, dùng `method.brand` để xác định màu và chữ viết tắt.
+
+Đồng thời cần xử lý hiển thị trong `checkout.tsx`: đồng bộ danh sách phương thức thanh toán. Hiện tại `checkout.tsx` sử dụng `PaymentMethodsContext` và hiển thị `selectedPayment`. Nếu danh sách chỉ có COD, OK. Nhưng sau khi người dùng thêm MoMo hoặc ngân hàng, checkout sẽ hiển thị. Cần thay đổi `checkout.tsx` để không hiển thị nút "Thêm phương thức" nếu danh sách rỗng? Nhưng hiện tại COD luôn có, nên không rỗng. Tuy nhiên cần xem `checkout.tsx` có phần hiển thị `EmptyState` nếu không có phương thức. Với COD mặc định, sẽ không rỗng. OK.
+
+Nhưng cần chỉnh `checkout.tsx` để đồng bộ danh sách: hiện tại nó dùng `selectedPayment = methods.find(p => p.id === checkout.paymentMethodId) ?? defaultMethod`. Vì COD mặc định và luôn có, ok. Có thể cần thay đổi `getPaymentIcon` để hiển thị icon phù hợp cho brand? Có thể hiển thị logo nhỏ cho MoMo/ngân hàng. Nhưng yêu cầu không nói rõ trong checkout, chỉ nói "Đồng bộ danh sách phương thức thanh toán: hiển thị phương thức đang chọn (mặc định là COD) và cho phép chuyển đổi sang MoMo / Ngân hàng nếu đã thêm." Điều này đã có sẵn qua việc nhấn "Thay đổi" điều hướng sang payment-method, chọn và xác nhận. Vậy không cần thay đổi lớn, nhưng nên cập nhật `getPaymentIcon` để trả về icon phù hợp nếu có brand? Có thể không cần, vì `selectedPayment` có `type` và `name`, đủ hiển thị. Nhưng để đẹp hơn, ta có thể hiển thị một badge chữ cái đầu của brand. Tuy nhiên yêu cầu chính là đồng bộ, không cần thay đổi. Tuy nhiên, do chúng ta đã thêm `brand` vào type, nên `checkout.tsx` không bị lỗi.
+
+Cần cập nhật `src/context/PaymentMethodsContext.tsx`: hiện tại nó gọi `ProfileService.listPaymentMethods()`. Nếu mock `MOCK_PAYMENT_METHODS` thay đổi, `ProfileService` có thể trả về dữ liệu đó. Tuy nhiên không có mã nguồn của `ProfileService`. Nhưng `MOCK_PAYMENT_METHODS` là mock, và service có thể import nó. Nhưng để đảm bảo, chúng ta cần sửa `src/context/PaymentMethodsContext.tsx` để có thể sử dụng mock trực tiếp? Hoặc không cần. Tuy nhiên yêu cầu "Dữ liệu ban đầu (Initial State): Trước mắt sửa lại là KHÔNG CÓ thẻ hay ví nào lưu sẵn cả, CHỈ CÓ COD (Thanh toán khi nhận hàng) là mặc định." Nếu `ProfileService.listPaymentMethods()` sử dụng mock, thì việc sửa `MOCK_PAYMENT_METHODS` sẽ đáp ứng. Còn nếu service có logic khác, có thể không. Nhưng bài yêu cầu chỉ cập nhật các file cần thiết, có thể bao gồm `paymentMethods.ts`, `payment-method.tsx`, `checkout.tsx`. Tuy nhiên để chắc chắn, có thể cần sửa `ProfileService`? Không cung cấp. Tôi nghĩ chỉ cần sửa mock `MOCK_PAYMENT_METHODS`, context vẫn gọi service, service có thể lấy từ mock. Chấp nhận.
+
+5. `app/app-settings.tsx`: Yêu cầu:
+- Xoá phần Chế độ tối (Dark mode).
+- Xoá mục Ngôn ngữ và mục Tiền tệ (cả 2 modal chọn ngôn ngữ và tiền tệ đều xoá).
+- Xoá 2 dòng thông báo (thông báo đẩy và thông báo email), thay bằng 1 dòng duy nhất: "Cho phép thông báo" với nút gạt bật/tắt (Switch).
+- Xoá nút "Xoá bộ nhớ đệm" trong phần Quyền riêng tư.
+- Giữ lại: Chính sách bảo mật, Đổi mật khẩu, Đăng nhập sinh trắc học (nếu có).
+
+Hiện tại `app-settings.tsx` sử dụng `AppSettings` type có `darkMode`, `pushEnabled`, `emailEnabled`, `language`, `currency`, `biometricEnabled`. Yêu cầu xóa:
+- Loại bỏ các section: GIAO DIỆN (darkMode), NGÔN NGỮ, TIỀN TỆ.
+- THÔNG BÁO: thay 2 dòng bằng 1 dòng "Cho phép thông báo" với Switch điều khiển `pushEnabled` (hoặc có thể dùng `pushEnabled` làm đại diện cho việc cho phép thông báo). Nhưng `emailEnabled` không dùng nữa. Có thể giữ `pushEnabled` nhưng đổi nhãn. Tuy nhiên hiện `AppSettings` type yêu cầu `emailEnabled` vẫn tồn tại. Nếu chúng ta muốn xóa hẳn trường `emailEnabled` khỏi type? Điều đó sẽ gây lỗi nếu nơi khác sử dụng. Nhưng yêu cầu "Xoá 2 dòng thông báo, thay bằng 1 dòng duy nhất", tức chỉ thay UI, không bắt buộc xóa field trong type. Tuy nhiên field `emailEnabled` sẽ không dùng, nhưng vẫn còn trong `AppSettings` type; nếu không dùng thì không sao. Tuy nhiên cần lưu ý khi lưu settings, `draft` vẫn có `emailEnabled`, nhưng không hiển thị. Vậy chấp nhận.
+
+- Quyền riêng tư: xóa mục "Xoá bộ nhớ đệm", giữ Chính sách bảo mật.
+
+Và cũng cần xóa các state/modals liên quan (languageModalVisible, currencyModalVisible, CURRENCIES, LANGUAGES, handleClearCache, SheetModal cho language/currency). Có thể giữ component SheetModal vẫn cần cho password modal.
+
+Cần sửa:
+- Xóa import `LANGUAGES`, `CURRENCIES`.
+- Xóa state `languageModalVisible`, `currencyModalVisible`.
+- Xóa `handleClearCache`.
+- Xóa phần JSX tương ứng.
+- Thay đổi section THÔNG BÁO: chỉ 1 dòng `SettingRow` với Switch điều khiển `pushEnabled` (có thể label "Cho phép thông báo" subtitle "Nhận thông báo từ ứng dụng" hoặc tương tự), `isLast`.
+- Sửa `SectionLabel` cho phù hợp.
+- Xóa styles không dùng? Không cần, có thể giữ.
+
+Cần kiểm tra xem `AppSettings` type có `emailEnabled` vẫn được giữ nguyên, khi lưu vẫn lưu `draft` bao gồm cả `emailEnabled` (vì `draft` là copy state). Khi hiển thị, không có UI để thay đổi `emailEnabled`, nhưng khi lần đầu load, `draft` sẽ có giá trị mặc định từ `MOCK_APP_SETTINGS` (có `emailEnabled: true`). Khi lưu, nó vẫn giữ. Không vấn đề.
+
+Lưu ý: `MOCK_APP_SETTINGS` (không cung cấp) có thể vẫn có `emailEnabled`, không cần thay đổi.
+
+Ngoài ra cần điều chỉnh `styles` cho phù hợp, nhưng chủ yếu là xóa JSX.
+
+Tổng kết các file cần thay đổi:
+1. `app/(tabs)/home.tsx`
+2. `app/notification.tsx`
+3. `app/(tabs)/account.tsx`
+4. `src/mock/paymentMethods.ts`
+5. `app/payment-method.tsx`
+6. `app/checkout.tsx` (có thể cần thay đổi nhỏ, nhưng có thể giữ nguyên nếu không cần)
+7. `app/app-settings.tsx`
+8. `src/types/index.ts` (thêm `brand` vào `PaymentMethod`? Có thể không cần nếu dùng `name` để nhận diện, nhưng tôi nghĩ nên thêm để dễ dàng hiển thị logo và không phụ thuộc chuỗi. Tuy nhiên điều này làm thay đổi type, cần cập nhật các nơi khác nếu có. Nhưng `PaymentMethod` hiện tại chỉ có `id, type, name, detail, expiry, isDefault`. Nếu thêm `brand` optional, các file khác sẽ không bị lỗi vì optional. Có thể thêm `brand?: PaymentBrand` và định nghĩa type. Nhưng cần cân nhắc xem có nên đưa vào không. Nếu không thêm, trong `payment-method.tsx` ta có thể viết function `getBrandInfo(name)` dựa trên tên ngân hàng/MoMo. Điều này đơn giản hơn, không cần thay type. Vậy tôi sẽ không sửa `src/types/index.ts` (tránh phức tạp). Dùng logic xác định từ `name`. Cần cẩn thận vì tiếng Việt: "Ví MoMo", "Vietcombank", "BIDV", "VietinBank", "Agribank". Có thể tạo const `BRAND_META` với key là tên, hoặc mapping từ name. Tôi sẽ tạo trong `payment-method.tsx` một object `BRAND_STYLE` dựa trên tên chuẩn. Khi thêm mới, set `name` chính xác từ lựa chọn presets, như vậy việc detect dễ dàng. Các presets:
+  - Ví MoMo: type 'wallet', name 'Ví MoMo', brand key 'momo'.
+  - Vietcombank: type 'card', name 'Vietcombank', brand key 'vietcombank'.
+  - BIDV: type 'card', name 'BIDV', brand key 'bidv'.
+  - VietinBank: type 'card', name 'VietinBank', brand key 'vietinbank'.
+  - Agribank: type 'card', name 'Agribank', brand key 'agribank'.
+  - COD: type 'cod', name 'Thanh toán khi nhận hàng', brand key 'cod'.
+
+Cần xác định các màu sắc/hiển thị cho mỗi brand:
+- MoMo: màu hồng đặc trưng (#A50064 hoặc #E91E63). Dùng màu hồng `#E91E63`, chữ "MoMo" hoặc icon "wallet".
+- Vietcombank: màu xanh lá cây (#006F3C) hoặc logo quen thuộc màu xanh lá. Dùng màu xanh lá, chữ "VCB".
+- BIDV: màu xanh dương đậm (#003C71), chữ "BIDV".
+- VietinBank: màu cam đỏ (#F7941D), chữ "VietinBank".
+- Agribank: màu xanh ngọc (#009B74), chữ "Agribank".
+
+Trong giao diện danh sách, ta có thể thay ô icon bằng ô brand badge có màu nền và chữ viết tắt. Cần điều chỉnh `optionIconBox` để hiển thị nội dung đặc biệt dựa trên brand. Có thể render một View với backgroundColor brandColor và chữ brandShort.
+
+Cần thêm function `getBrandMeta(method: PaymentMethod)` trả về `{ color: string; shortName: string }`.
+
+Trong modal thêm, hiển thị các lựa chọn dạng grid hoặc list các brand có sẵn. Khi chọn brand, set `formType` và `formBrand`? Có thể giữ `formType` theo brand, nhưng cần thêm state `formBrand` hoặc chỉ `formType` kèm `formName`? Tôi sẽ đơn giản hóa: 
+- Tạo const `PAYMENT_BRANDS: { key: string; label: string; type: PaymentMethodType; placeholder: string }[]` gồm 5 lựa chọn: Momo, 4 banks. 
+- Trong modal, render danh sách các nút brand, khi chọn một brand, set `selectedBrandKey`, đồng thời set `formType` tương ứng, set `formName` = label, set `formDetail` = '', set `formExpiry` = ''.
+- Form chỉ hiển thị 2 field: `Số thẻ / SĐT` và `Hạn sử dụng (MM/YY)`. Label thay đổi theo brand.
+- Khi submit, tạo `detail = brandLabel + ' ' + maskedNumber` (che số: `•••• 1234`). Cần xử lý che số: nếu là MoMo, nhập SĐT 10 số, hiển thị `•••• 1234` (lấy 4 số cuối). Nếu là thẻ ngân hàng, nhập số thẻ có thể dài, hiển thị `•••• 1234`. Yêu cầu: "có số thẻ được che bảo mật (`•••• 1234`)". Như vậy chúng ta tạo `detail` = `${brandShort} •••• ${last4}`. Lưu ý brandShort có thể khác nhau. Đơn giản: dùng `name` làm prefix. Vậy `detail = `${name} •••• ${lastDigits}``. Hoặc chỉ `•••• ${lastDigits}`. Tôi sẽ dùng `name` + ` •••• ` + last4.
+
+Cần xử lý khi người dùng chọn brand, có thể hiển thị luôn màu sắc và shortName. Trong modal, dùng một row các nút brand để chọn. Có thể scroll ngang.
+
+Trong `payment-method.tsx`, hiện tại có component `CardMockup` hiển thị card dựa trên `selectedMethod`. CardMockup hiện tại dùng màu tối và hiển thị Mastercard logo, wallet icon, cash icon. Tuy nhiên với brands ngân hàng và MoMo, cần thay đổi hiển thị card mockup để phản ánh brand. Có thể thay đổi màu nền của cardMockup dựa trên brand và hiển thị tên brand. Tôi sẽ tạo `getBrandMeta(selectedMethod)` trả về màu nền, màu chữ, shortName, logo text. Sử dụng cho cardMockup.
+
+Vậy `payment-method.tsx` cần sửa đáng kể, đảm bảo không lỗi.
+
+Cần thay đổi:
+- Import Modal vốn có.
+- Thêm const `PAYMENT_BRANDS`, `getBrandMetaFromName`, `getBrandMetaFromMethod`, `maskCardNumber`.
+- Sửa modal thêm: thay vì type chips, hiển thị các brand options (có hình ảnh đại diện bằng màu sắc/chữ). Khi chọn brand, set các state.
+- Sửa `handleAddMethod`: validate fields, tạo `detail` có che số, `name` là tên brand.
+- Sửa giao diện danh sách: `optionIconBox` hiển thị nội dung brand, không chỉ icon. CardMockup phía trên cũng đổi màu nền theo brand.
+
+Cũng cần điều chỉnh `MOCK_PAYMENT_METHODS` thành chỉ COD.
+
+`app/checkout.tsx`: Có thể giữ nguyên, nhưng cần đảm bảo `getPaymentIcon` không bị lỗi nếu brand thay đổi. Hiện getPaymentIcon dựa trên `type`, vẫn OK. Tuy nhiên có thể cải thiện hiển thị selectedPayment: hiện tại hiển thị icon và detail. Với brand mới, vẫn hiển thị tên và detail, tên là "Vietcombank", detail là "Vietcombank •••• 1234". Như vậy ổn. Không cần thay đổi.
+
+Tuy nhiên yêu cầu "Đồng bộ danh sách phương thức thanh toán: hiển thị phương thức đang chọn (mặc định là COD) và cho phép chuyển đổi sang MoMo / Ngân hàng nếu đã thêm." Hiện `checkout.tsx` cho phép nhấn "Thay đổi" để sang payment-method chọn, rồi quay lại, phương thức selected dựa trên `checkout.paymentMethodId` hoặc defaultMethod. Vậy đáp ứng. Không cần sửa.
+
+Cuối cùng, cần xem xét `src/context/SettingsContext.tsx` không cần thay đổi.
+
+Bây giờ tiến hành viết từng file.
+
+Cần lưu ý về TypeScript strict: đảm bảo các import không dùng bị lỗi, không có biến không sử dụng (có thể bị cảnh báo noUnusedLocals nếu cấu hình). Expo TS có thể cấu hình noUnusedLocals. Để an toàn, xóa hết các import không dùng.
+
+Khi code, chú ý:
+- Trong `home.tsx`, xóa import `Chip` và `useProductFilter`? Vẫn dùng `useProductFilter`. Xóa `Chip` import. Xóa `filterChips`, `handleChipPress`. Xóa style `chipsRow`. Thay đổi `handleSelectCategory`.
+- Trong `notification.tsx`, xóa import `ScrollView`, thêm import `Modal`. Xóa `TABS`, `TabKey`, `activeTab`, `filteredNotifications`. Xóa `ScrollView` horizontal. Sửa `handlePressNotification` để set `selectedNotification`. Thêm modal.
+- Trong `account.tsx`, xóa import `useFavourites`, thêm dòng `const { favourites } = useFavourites();` xóa, xóa `favouriteSubtitle`, xóa mục trong orderItems, xóa Pressable yêu thích trong statsRow.
+- Trong `app-settings.tsx`, xóa các hằng `LANGUAGES`, `CURRENCIES`, state modal, hàm handleClearCache, JSX section GIAO DIỆN, NGÔN NGỮ, TIỀN TỆ. Điều chỉnh section THÔNG BÁO thành 1 dòng. Quyền riêng tư bỏ Xóa cache. Có thể xóa state `languageModalVisible`, `currencyModalVisible`, `handleClearCache`. Giữ `SheetModal` component.
+- `payment-method.tsx`: viết lại khá nhiều.
+
+Cần viết file đầy đủ.
+
+Do yêu cầu "Trả về danh sách các file cần thay đổi dưới dạng các khối: === FILE: ... ===" với toàn bộ mã nguồn. Chúng ta sẽ cung cấp 6 file thay đổi chính: home, notification, account, payment-method, paymentMethods mock, app-settings. Có thể cần sửa `src/types/index.ts` nếu muốn thêm brand, nhưng quyết định không. Không cần sửa `checkout.tsx`. Tuy nhiên có thể cần sửa `checkout.tsx` nếu muốn hiển thị logo brand đẹp hơn, nhưng không bắt buộc, để giảm rủi ro. Nhưng khách hàng có thể muốn checkout hiển thị logo, nhưng yêu cầu không nói rõ. Vì vậy không cần thay đổi.
+
+Cần đảm bảo không lỗi syntax.
+
+Viết từng file:
+
+### 1. `app/(tabs)/home.tsx`
+
+Copy file gốc, xóa bỏ:
+- import `Chip` (dòng: `import { Chip } from '../../src/components/Chip';`)
+- `filterChips` useMemo
+- `handleChipPress`
+- JSX block `{/* Filter chips */} ...` và `<View style={styles.chipsRow}> ... </View>`
+- style `chipsRow`
+
+Sửa `handleSelectCategory`:
+```
+const handleSelectCategory = useCallback(
+  (categoryId: string) => {
+    setCategoryIds((prev) => (prev.includes(categoryId) ? [] : [categoryId]));
+  },
+  [setCategoryIds],
+);
+```
+Chú ý `setCategoryIds` từ context có thể là và thay thế, có signature `setCategoryIds: (ids: string[]) => void` hoặc tương tự, nhưng chúng ta có thể dùng callback. Trong `home.tsx` hiện `setCategoryIds` được gọi trực tiếp với `[categoryId]`. Vậy có thể gọi `setCategoryIds(prev => prev.includes(categoryId) ? [] : [categoryId])`. Nhưng kiểu của setCategoryIds từ context: cần xem. `useProductFilter` trả về `setCategoryIds`. Trong code hiện tại sử dụng `setCategoryIds([categoryId])`, vậy `setCategoryIds` nhận mảng. Có thể nó là state setter có dạng `(ids: string[]) => void`. Nếu gọi với callback, TypeScript sẽ hiểu callback nhận prev là `string[]`, trả về `string[]`. Vậy OK.
+
+Sửa style: xóa `chipsRow` và các style không dùng.
+
+### 2. `app/notification.tsx`
+
+- Xóa import `ScrollView`.
+- Thêm import `Modal`.
+- Xóa type `TabKey`, `TABS`.
+- Xóa state `activeTab`, `filteredNotifications`.
+- Trong component, bỏ `activeTab`, `filteredNotifications`, thay `data={notifications}` cho FlatList.
+- Thêm state `selectedNotification` (AppNotification | null).
+- Sửa `handlePressNotification`:
+```
+const handlePressNotification = useCallback(
+  (item: AppNotification) => {
+    if (!item.read) {
+      markAsRead(item.id).catch(() => undefined);
+    }
+    setSelectedNotification(item);
+  },
+  [markAsRead],
+);
+```
+- Thêm modal component bên trong return, sau FlatList? Có thể đặt ở cuối SafeAreaView.
+Modal:
+```
+<Modal
+  visible={selectedNotification !== null}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setSelectedNotification(null)}
+>
+  <View style={styles.modalRoot}>
+    <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedNotification(null)} />
+    <View style={styles.modalCard}>
+      {selectedNotification && (
+        <>
+          <View style={[styles.modalIcon, { backgroundColor: NOTIFICATION_META[selectedNotification.type].bg }]}>
+            <Ionicons name={NOTIFICATION_META[selectedNotification.type].icon} size={32} color={NOTIFICATION_META[selectedNotification.type].color} />
+          </View>
+          <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
+          <Text style={styles.modalTime}>{formatDate(selectedNotification.createdAt)}</Text>
+          <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
+          <PrimaryButton title="Đã hiểu" onPress={() => setSelectedNotification(null)} />
+        </>
+      )}
+    </View>
+  </View>
+</Modal>
+```
+Cần import `PrimaryButton` (đã có). `formatDate` đã import.
+
+- Sửa footer style: thêm `borderTopLeftRadius`, `borderTopRightRadius`, `overflow: 'hidden'`. Padding bottom dùng `insets.bottom + spacing.md`.
+
+Cần thêm styles: `modalRoot`, `modalCard`, `modalIcon`, `modalTitle`, `modalTime`, `modalMessage`.
+
+Xóa các styles liên quan đến tabs: `tabsContent`, `tab`, `tabActive`, `tabText`, `tabTextActive`.
+
+### 3. `app/(tabs)/account.tsx`
+
+- Xóa import `useFavourites`.
+- Xóa `const { favourites } = useFavourites();`
+- Xóa `favouriteSubtitle`.
+- Xóa mục trong `orderItems`: đối tượng có id 'favourites'.
+- Xóa trong `statsRow`: Pressable yêu thích (thứ hai).
+
+Sau khi xóa, `statsRow` chỉ còn 1 Pressable (đơn hàng). Style `statCard` đã có `flex: 1`, nên OK.
+
+Sửa accessibilityLabel của Pressable đơn hàng: bỏ `favourites.length` nếu không dùng. Hiện tại `accessibilityLabel={`${orders.length} đơn hàng`}` vẫn dùng orders.length. OK.
+
+### 4. `src/mock/paymentMethods.ts`
+
+Sửa thành:
+```
+import { PaymentMethod } from '../types';
+
+export const MOCK_PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    id: 'pay-cod',
+    type: 'cod',
+    name: 'Thanh toán khi nhận hàng',
+    detail: 'COD - Trả tiền mặt khi giao',
+    isDefault: true,
+  },
+];
+```
+Không cần expiry cho COD.
+
+### 5. `app/payment-method.tsx`
+
+Cần viết lại gần như toàn bộ phần JSX để phù hợp.
+
+Bây giờ, thiết kế:
+
+Thêm const:
+```
+type PaymentBrandKey = 'momo' | 'vietcombank' | 'bidv' | 'vietinbank' | 'agribank' | 'cod';
+
+interface PaymentBrandOption {
+  key: PaymentBrandKey;
+  label: string;
+  type: PaymentMethodType;
+  color: string;
+  shortName: string;
+  placeholder: string;
+}
+
+const PAYMENT_BRANDS: PaymentBrandOption[] = [
+  { key: 'momo', label: 'Ví MoMo', type: 'wallet', color: '#E91E63', shortName: 'MoMo', placeholder: 'Số điện thoại liên kết' },
+  { key: 'vietcombank', label: 'Vietcombank', type: 'card', color: '#006F3C', shortName: 'VCB', placeholder: 'Số thẻ' },
+  { key: 'bidv', label: 'BIDV', type: 'card', color: '#003C71', shortName: 'BIDV', placeholder: 'Số thẻ' },
+  { key: 'vietinbank', label: 'VietinBank', type: 'card', color: '#F7941D', shortName: 'VietinBank', placeholder: 'Số thẻ' },
+  { key: 'agribank', label: 'Agribank', type: 'card', color: '#009B74', shortName: 'Agribank', placeholder: 'Số thẻ' },
+];
+```
+`type` cho COD không cần trong danh sách thêm, nhưng có thể thêm nếu cần.
+
+Hàm getBrandMeta:
+```
+function getBrandMeta(method: PaymentMethod): { color: string; shortName: string } {
+  const brand = PAYMENT_BRANDS.find((b) => b.label === method.name || (method.name === 'Ví MoMo' && b.key === 'momo') || ...);
+  // Đơn giản: dùng mapping
+  switch (method.name) {
+    case 'Ví MoMo': return { color: '#E91E63', shortName: 'MoMo' };
+    case 'Vietcombank': return { color: '#006F3C', shortName: 'VCB' };
+    case 'BIDV': return { color: '#003C71', shortName: 'BIDV' };
+    case 'VietinBank': return { color: '#F7941D', shortName: 'VietinBank' };
+    case 'Agribank': return { color: '#009B74', shortName: 'Agribank' };
+    default: return { color: colors.primary, shortName: 'COD' };
+  }
+}
+```
+Có thể tạo const object.
+
+State modal:
+- Thay `formType` thành `selectedBrandKey` (string | null) hoặc `formBrandKey`.
+- Khi mở modal: default chọn brand đầu tiên? Có thể không chọn gì, bắt buộc chọn. Cần validate.
+- State `formDetail` (số thẻ/SĐT) và `formExpiry` (MM/YY).
+- Thêm `selectedBrandKey` state.
+
+Khi chọn brand trong modal (grid/list), set `selectedBrandKey`, `formType` (không cần riêng), và cập nhật `formName`? Thực ra `name` sẽ được lấy từ brand label lúc submit, không cần `formName` state. Chúng ta xóa `formName` state, thay bằng brand label.
+
+Vậy trong `handleAddMethod`:
+```
+if (!selectedBrandKey) {
+  setFormError('Vui lòng chọn hình thức thanh toán.');
+  return;
+}
+const brand = PAYMENT_BRANDS.find(b => b.key === selectedBrandKey);
+if (!brand) return;
+const detailRaw = formDetail.trim();
+const expiry = formExpiry.trim();
+if (!detailRaw || !expiry) {
+  setFormError('Vui lòng nhập đầy đủ thông tin.');
+  return;
+}
+// mask number
+const last4 = detailRaw.replace(/\s/g, '').slice(-4);
+const masked = last4 ? `•••• ${last4}` : detailRaw;
+const name = brand.label;
+const detail = `${name} ${masked}`;
+await addMethod({
+  type: brand.type,
+  name,
+  detail,
+  expiry,
+  isDefault: methods.length === 0, // but COD always exists, so methods.length never 0? Actually after initial load methods has COD, so length never 0. Could keep false.
+});
+...
+```
+Nhưng nếu methods luôn có COD, `isDefault` nên là false trừ khi người dùng đặt mặc định. Ban đầu COD mặc định, thêm phương thức mới không nên mặc định. Nên `isDefault: false`.
+
+Cần validate expiry MM/YY? Có thể đơn giản kiểm tra không rỗng.
+
+Modal UI:
+- Hiển thị danh sách các brand options theo chiều dọc hoặc grid. Vì có 5 lựa chọn, dùng grid 2 cột hoặc list. Có thể dùng 2 cột với flexWrap. Tôi sẽ tạo view `brandGrid` với các Pressable mỗi brand có backgroundColor brand.color, chữ shortName. Khi chọn, border primary.
+- Sau khi chọn brand, hiển thị 2 FormField: label tùy theo brand.placeholder và "Hạn sử dụng (MM/YY)".
+- Nút Thêm/Huỷ như cũ.
+
+CardMockup ở đầu màn hình: cần hiển thị dựa trên selectedMethod.
+- Sửa style `cardMockup` backgroundColor thành `getBrandMeta(selectedMethod).color` (nếu không có selectedMethod, dùng màu tối).
+- Hiển thị text brand: `getBrandMeta(selectedMethod).shortName`.
+- Có thể hiển thị logo dạng chữ viết tắt thay vì Mastercard logo. Thay thế `cardBrandRow` bên phải: nếu selectedMethod có brand, hiển thị chữ shortName màu trắng, thay vì Mastercard. Nếu là COD, hiển thị icon cash.
+
+- Danh sách optionRow: hiện `optionIconBox` hiển thị Ionicons. Sửa để hiển thị brand color và shortName. Có thể tạo một view với backgroundColor brand color, borderRadius, chữ shortName màu trắng. Thay thế nội dung bên trong `optionIconBox`.
+
+Như vậy file `payment-method.tsx` sẽ dài, nhưng đảm bảo.
+
+Cần cập nhật styles thêm: `brandGrid`, `brandOption`, `brandOptionActive`, `brandOptionText`, `brandIconBox`, `brandIconText` v.v.
+
+### 6. `app/app-settings.tsx`
+
+- Xóa import `useMemo`? Vẫn dùng `useMemo` cho `hasChanges`. OK.
+- Xóa `LANGUAGES`, `CURRENCIES`.
+- Xóa state `languageModalVisible`, `currencyModalVisible`.
+- Xóa `handleClearCache`.
+- JSX:
+  - Xóa toàn bộ section GIAO DIỆN và NGÔN NGỮ và TIỀN TỆ.
+  - Sửa section THÔNG BÁO: thay thế 2 dòng bằng 1 dòng:
+```
+<SectionLabel>THÔNG BÁO</SectionLabel>
+<View style={styles.card}>
+  <SettingRow
+    icon="notifications-outline"
+    title="Cho phép thông báo"
+    subtitle="Nhận thông báo từ ứng dụng"
+    isLast
+    right={
+      <Switch
+        value={draft.pushEnabled}
+        onValueChange={(value) => handleToggle('pushEnabled', value)}
+        ...
+      />
+    }
+  />
+</View>
+```
+  - Quyền riêng tư: chỉ còn Chính sách bảo mật (isLast).
+- Có thể xóa style `optionRow`... không dùng? Nhưng vẫn dùng cho password modal? Không, password modal dùng input. Các style optionRow có thể không dùng nữa, nhưng nếu để lại cũng không lỗi, nhưng có thể gây cảnh báo unused style? StyleSheet không gây lỗi unused. Tuy nhiên để code sạch, nên xóa các style không dùng: `optionRow`, `optionRowActive`, `optionLeft`, `optionText`, `optionDot`. Nhưng cẩn thận, có thể không cần quá mức. Để giảm rủi ro, giữ nguyên style dù không dùng cũng không lỗi. Tuy nhiên nếu cấu hình ESLint, không ảnh hưởng vì StyleSheet.create tạo object, không ai check unused.
+
+- Có thể xóa state `showPassword`? Vẫn dùng cho password modal.
+
+- Xóa `handleClearCache` hoàn toàn.
+
+Cuối cùng, kiểm tra các imports ở đầu file `app-settings.tsx`: đang import `useEffect, useMemo, useState`; `KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View`. Vẫn dùng tất cả (Modal dùng cho password). `Alert` dùng. `Ionicons`. `SafeAreaView`. `colors, radius, spacing`. `useSettings`. `PrimaryButton, SecondaryButton`. `LoadingView`. `AppSettings`. OK.
+
+Vậy là xong.
+
+Bây giờ viết code đầy đủ cho từng file.
+
+Lưu ý: Trong `notification.tsx`, cần import `Modal` và thêm styles modal, nhớ sửa footer bo tròn.
+
+Cần kiểm tra `formatDate` import từ utils/format. Hiện có.
+
+Chú ý trong `account.tsx` sau khi xóa favourites, cần xóa import `useFavourites`. Không cần thêm gì.
+
+Trong `home.tsx`, xóa import `Chip` và không sử dụng.
+
+Sau khi xóa, cần đảm bảo không còn biến `filterChips`, `handleChipPress` trong JSX. Đã xóa.
+
+Cũng cần xóa style `chipsRow`.
+
+Bây giờ viết file.
+
+Vì yêu cầu "Không giải thích ngoài lề", tôi sẽ chỉ xuất ra các khối file.
+
+Tôi sẽ sắp xếp theo thứ tự: home, notification, account, payment-method, paymentMethods, app-settings.
+
+Không cần sửa `src/types/index.ts` hoặc `checkout.tsx`.
+
+Bắt đầu viết.
