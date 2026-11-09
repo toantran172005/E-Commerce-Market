@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors, radius, spacing } from '../constants/theme';
 import { OrderItem } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { CatalogService } from '../services/catalog.service';
+import { CatalogService } from '../services/catalogService';
 import { PrimaryButton, SecondaryButton } from './Button';
 
 interface ReviewModalProps {

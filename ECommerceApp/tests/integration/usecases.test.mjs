@@ -2,14 +2,14 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { terminate } from 'firebase/firestore';
 import { db } from '../../src/firebaseConfig.ts';
-import { AuthService } from '../../src/services/auth.service.ts';
-import { CatalogService } from '../../src/services/catalog.service.ts';
-import { VoucherService } from '../../src/services/voucher.service.ts';
-import { OrderService } from '../../src/services/order.service.ts';
-import { ProfileService } from '../../src/services/profile.service.ts';
-import { NotificationService } from '../../src/services/notification.service.ts';
-import { SearchService } from '../../src/services/search.service.ts';
-import { SupportService } from '../../src/services/support.service.ts';
+import { AuthService } from '../../src/services/authService.ts';
+import { CatalogService } from '../../src/services/catalogService.ts';
+import { VoucherService } from '../../src/services/voucherService.ts';
+import { OrderService } from '../../src/services/orderService.ts';
+import { ProfileService } from '../../src/services/profileService.ts';
+import { NotificationService } from '../../src/services/notificationService.ts';
+import { SearchService } from '../../src/services/searchService.ts';
+import { SupportService } from '../../src/services/supportService.ts';
 
 after(async () => {
   try {

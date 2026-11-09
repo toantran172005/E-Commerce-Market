@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../src/constants/theme';
-import { CatalogService } from '../../src/services/catalog.service';
+import { CatalogService } from '../../src/services/catalogService';
 import { useProductSearch } from '../../src/hooks/useProductSearch';
 import { useProductFilter } from '../../src/context/ProductFilterContext';
 import { useCart } from '../../src/context/CartContext';

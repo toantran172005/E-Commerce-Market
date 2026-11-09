@@ -6,7 +6,7 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
-import { ProductSort } from '../services/catalog.service';
+import { ProductSort } from '../services/catalogService';
 
 export interface ProductFilterState {
   query: string;

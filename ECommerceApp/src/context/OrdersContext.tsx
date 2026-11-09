@@ -8,8 +8,8 @@ import React, {
   ReactNode,
 } from 'react';
 import { Order } from '../types';
-import { OrderService } from '../services/order.service';
-import { CatalogService } from '../services/catalog.service';
+import { OrderService } from '../services/orderService';
+import { CatalogService } from '../services/catalogService';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
 

@@ -21,7 +21,7 @@ import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../src/constants/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { useAsync } from '../src/hooks/useAsync';
-import { SupportService } from '../src/services/support.service';
+import { SupportService } from '../src/services/supportService';
 import { EmptyState } from '../src/components/EmptyState';
 import { FormField } from '../src/components/FormField';
 import { Toast } from '../src/components/Toast';

@@ -32,7 +32,7 @@ import {
 import { useCart } from '../../src/context/CartContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useAsync } from '../../src/hooks/useAsync';
-import { CatalogService } from '../../src/services/catalog.service';
+import { CatalogService } from '../../src/services/catalogService';
 import { formatMoney, calcDiscountPercent } from '../../src/utils/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

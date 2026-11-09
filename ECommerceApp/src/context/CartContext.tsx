@@ -8,8 +8,8 @@ import React, {
   ReactNode,
 } from 'react';
 import { CartItem, Product, ShippingMethod, Voucher } from '../types';
-import { VoucherService } from '../services/voucher.service';
-import { CatalogService } from '../services/catalog.service';
+import { VoucherService } from '../services/voucherService';
+import { CatalogService } from '../services/catalogService';
 import { computeCartTotals, computeSubtotal, CartTotals } from '../utils/pricing';
 import { cartItemKey, toCartItem } from '../utils/cart';
 

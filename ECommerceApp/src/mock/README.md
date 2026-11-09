@@ -44,7 +44,7 @@ Người dùng khách (guest) được hỗ trợ qua `AuthService.loginAsGuest(
 
 ## 4. Endpoint REST giả định ↔ Service
 
-### AuthService (`src/services/auth.service.ts`)
+### AuthService (`src/services/authService.ts`)
 
 | Hàm | Endpoint | Ghi chú |
 |-----|----------|---------|
@@ -55,7 +55,7 @@ Người dùng khách (guest) được hỗ trợ qua `AuthService.loginAsGuest(
 | `updateProfile` | `PATCH /users/me` | |
 | `loginAsGuest` | `POST /auth/login-guest` | |
 
-### CatalogService (`src/services/catalog.service.ts`)
+### CatalogService (`src/services/catalogService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|
@@ -67,7 +67,7 @@ Người dùng khách (guest) được hỗ trợ qua `AuthService.loginAsGuest(
 
 Hỗ trợ sort: `popular | new | priceAsc | priceDesc | rating`.
 
-### VoucherService (`src/services/voucher.service.ts`)
+### VoucherService (`src/services/voucherService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|
@@ -76,7 +76,7 @@ Hỗ trợ sort: `popular | new | priceAsc | priceDesc | rating`.
 
 Lỗi: `VOUCHER_NOT_FOUND`, `VOUCHER_EXPIRED`, `VOUCHER_OUT_OF_USAGE`, `VOUCHER_MIN_ORDER_NOT_MET`.
 
-### OrderService (`src/services/order.service.ts`)
+### OrderService (`src/services/orderService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|
@@ -88,7 +88,7 @@ Lỗi: `VOUCHER_NOT_FOUND`, `VOUCHER_EXPIRED`, `VOUCHER_OUT_OF_USAGE`, `VOUCHER_
 
 Lỗi: `ORDER_NOT_FOUND`, `ORDER_CANCEL_NOT_ALLOWED`, `ORDER_ITEMS_OUT_OF_STOCK`.
 
-### NotificationService (`src/services/notification.service.ts`)
+### NotificationService (`src/services/notificationService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|
@@ -97,7 +97,7 @@ Lỗi: `ORDER_NOT_FOUND`, `ORDER_CANCEL_NOT_ALLOWED`, `ORDER_ITEMS_OUT_OF_STOCK`
 | `markAllAsRead` | `PATCH /notifications/read-all` |
 | `createNotification` | `POST /notifications` |
 
-### ProfileService (`src/services/profile.service.ts`)
+### ProfileService (`src/services/profileService.ts`)
 
 | Nhóm | Endpoint |
 |------|----------|
@@ -105,7 +105,7 @@ Lỗi: `ORDER_NOT_FOUND`, `ORDER_CANCEL_NOT_ALLOWED`, `ORDER_ITEMS_OUT_OF_STOCK`
 | Thanh toán | `GET/POST /payment-methods`, `DELETE /payment-methods/:id`, `PATCH /payment-methods/:id/default` |
 | Cài đặt | `GET/PATCH /settings` |
 
-### SupportService (`src/services/support.service.ts`)
+### SupportService (`src/services/supportService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|
@@ -114,7 +114,7 @@ Lỗi: `ORDER_NOT_FOUND`, `ORDER_CANCEL_NOT_ALLOWED`, `ORDER_ITEMS_OUT_OF_STOCK`
 | `listTickets` | `GET /tickets?userId=` |
 | `createTicket` | `POST /tickets` |
 
-### SearchService (`src/services/search.service.ts`)
+### SearchService (`src/services/searchService.ts`)
 
 | Hàm | Endpoint |
 |-----|----------|

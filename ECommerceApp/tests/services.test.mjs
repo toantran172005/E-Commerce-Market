@@ -10,12 +10,12 @@ after(async () => {
   } catch {}
 });
 
-import { CatalogService } from '../src/services/catalog.service.ts';
-import { VoucherService } from '../src/services/voucher.service.ts';
-import { OrderService } from '../src/services/order.service.ts';
-import { AuthService } from '../src/services/auth.service.ts';
-import { NotificationService } from '../src/services/notification.service.ts';
-import { ProfileService } from '../src/services/profile.service.ts';
+import { CatalogService } from '../src/services/catalogService.ts';
+import { VoucherService } from '../src/services/voucherService.ts';
+import { OrderService } from '../src/services/orderService.ts';
+import { AuthService } from '../src/services/authService.ts';
+import { NotificationService } from '../src/services/notificationService.ts';
+import { ProfileService } from '../src/services/profileService.ts';
 
 /* -------------------------------------------------------------------------- */
 /*                               CATALOG SERVICE                              */

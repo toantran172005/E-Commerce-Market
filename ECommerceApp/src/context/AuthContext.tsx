@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { UserProfile } from '../types';
-import { AuthService, RegisterInput } from '../services/auth.service';
+import { AuthService, RegisterInput } from '../services/authService';
 
 interface AuthContextValue {
   user: UserProfile | null;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Product } from '../types';
 import { ApiError } from '../services/http';
-import { CatalogService } from '../services/catalog.service';
+import { CatalogService } from '../services/catalogService';
 import { useProductFilter } from '../context/ProductFilterContext';
 import { useDebounce } from './useDebounce';
 

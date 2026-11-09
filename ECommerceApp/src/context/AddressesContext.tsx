@@ -8,7 +8,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { Address } from '../types';
-import { ProfileService } from '../services/profile.service';
+import { ProfileService } from '../services/profileService';
 import { useAuth } from './AuthContext';
 
 interface AddressesContextValue {

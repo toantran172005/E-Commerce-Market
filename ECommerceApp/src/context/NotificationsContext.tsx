@@ -11,7 +11,7 @@ import { AppNotification } from '../types';
 import {
   CreateNotificationInput,
   NotificationService,
-} from '../services/notification.service';
+} from '../services/notificationService';
 
 interface NotificationsContextValue {
   notifications: AppNotification[];

@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { Order } from '../types';
 import { ApiError } from '../services/http';
-import { OrderService } from '../services/order.service';
+import { OrderService } from '../services/orderService';
 import { computeCartTotals } from '../utils/pricing';
 import { DEFAULT_SHIPPING_METHOD } from './CartContext';
 import { useAuth } from './AuthContext';
