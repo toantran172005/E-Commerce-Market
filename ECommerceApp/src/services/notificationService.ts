@@ -72,7 +72,18 @@ export const NotificationService = {
       try {
         const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
         if (!snap.empty) {
-          notifs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }));
+          notifs = snap.docs.map((d) => {
+            const data = d.data() as Partial<AppNotification>;
+            return {
+              id: d.id,
+              type: (data.type || 'order') as NotificationType,
+              title: data.title || 'Thông báo hệ thống',
+              message: data.message || 'Bạn có thông báo mới từ hệ thống.',
+              createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
+              read: Boolean(data.read),
+              data: data.data || {},
+            };
+          });
         } else {
           notifs = [...mockNotificationsDb];
         }

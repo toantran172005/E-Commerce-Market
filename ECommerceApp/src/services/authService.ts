@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
-import { UserProfile } from '../types';
+import { UserProfile, Address } from '../types';
 import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
 import { DEMO_USER, GUEST_USER, MOCK_USERS, MockUser } from '../mock/users';
 
@@ -126,6 +126,20 @@ export const AuthService = {
       };
 
       await setDoc(doc(db, 'users', uid), profile, { merge: true });
+
+      // Khởi tạo ngay địa chỉ nhận hàng mặc định đầu tiên cho người dùng mới
+      const defaultAddr: Address = {
+        id: 'addr_default',
+        label: 'Nhà riêng',
+        fullName,
+        phone: phone || '0901284920',
+        address: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
+        isDefault: true,
+      };
+      try {
+        await setDoc(doc(db, 'users', uid, 'addresses', 'addr_default'), defaultAddr);
+      } catch {}
+
       return profile;
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể đăng ký tài khoản. Vui lòng thử lại.');

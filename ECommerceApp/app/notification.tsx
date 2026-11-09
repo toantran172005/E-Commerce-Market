@@ -47,6 +47,19 @@ const NOTIFICATION_META: Record<NotificationType, { icon: IoniconName; color: st
   review: { icon: 'star-outline', color: colors.warning, bg: colors.warningSoft },
 };
 
+const DEFAULT_META: { icon: IoniconName; color: string; bg: string } = {
+  icon: 'notifications-outline',
+  color: colors.primary,
+  bg: colors.primarySoft,
+};
+
+function getNotificationMeta(type?: string): { icon: IoniconName; color: string; bg: string } {
+  if (type && type in NOTIFICATION_META) {
+    return NOTIFICATION_META[type as NotificationType];
+  }
+  return DEFAULT_META;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                   Screen                                   */
 /* -------------------------------------------------------------------------- */
@@ -101,7 +114,7 @@ export default function NotificationScreen() {
 
   const renderItem: ListRenderItem<AppNotification> = useCallback(
     ({ item }) => {
-      const meta = NOTIFICATION_META[item.type];
+      const meta = getNotificationMeta(item?.type);
 
       return (
         <Pressable
@@ -205,29 +218,32 @@ export default function NotificationScreen() {
         <View style={styles.modalRoot}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelectedNotification(null)} />
           <View style={styles.modalCard}>
-            {selectedNotification && (
-              <>
-                <View
-                  style={[
-                    styles.modalIcon,
-                    { backgroundColor: NOTIFICATION_META[selectedNotification.type].bg },
-                  ]}
-                >
-                  <Ionicons
-                    name={NOTIFICATION_META[selectedNotification.type].icon}
-                    size={32}
-                    color={NOTIFICATION_META[selectedNotification.type].color}
+            {selectedNotification && (() => {
+              const meta = getNotificationMeta(selectedNotification.type);
+              return (
+                <>
+                  <View
+                    style={[
+                      styles.modalIcon,
+                      { backgroundColor: meta.bg },
+                    ]}
+                  >
+                    <Ionicons
+                      name={meta.icon}
+                      size={32}
+                      color={meta.color}
+                    />
+                  </View>
+                  <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
+                  <Text style={styles.modalTime}>{formatDate(selectedNotification.createdAt)}</Text>
+                  <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
+                  <PrimaryButton
+                    title="Đã hiểu"
+                    onPress={() => setSelectedNotification(null)}
                   />
-                </View>
-                <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
-                <Text style={styles.modalTime}>{formatDate(selectedNotification.createdAt)}</Text>
-                <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
-                <PrimaryButton
-                  title="Đã hiểu"
-                  onPress={() => setSelectedNotification(null)}
-                />
-              </>
-            )}
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
