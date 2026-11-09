@@ -475,6 +475,8 @@ const styles = StyleSheet.create({
   priceBlock: {
     minWidth: 0,
     flexShrink: 1,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   price: {
     fontSize: 15,

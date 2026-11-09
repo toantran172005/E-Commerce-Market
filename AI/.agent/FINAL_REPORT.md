@@ -152,6 +152,36 @@ Bộ kiểm thử được thực thi qua lệnh `npm run test:all` gồm toàn 
 
 ---
 
-**KẾT LUẬN:** Toàn bộ các yêu cầu trong `prompts/003-sua-loi-giao-dien-tien-te-vnd-cod-thong-bao.md` đã được thực hiện trọn vẹn, chính xác, sạch sẽ, đạt chuẩn Definition of Done 100%.
+### 9. PHẦN BỔ SUNG: SỬA LỖI RUNTIME IOS & ĐỒNG BỘ HIỂN THỊ GIÁ TIỀN & PHƯƠNG THỨC THANH TOÁN
+
+1. **Khắc phục lỗi Runtime Crash trên iOS:**
+   - **Nguyên nhân:** Lỗi `TypeError: Cannot read property 'localeCompare' of undefined` tại `notification.service.ts:88` xảy ra khi bản ghi thông báo trong Firestore hoặc bộ nhớ tạm có trường `createdAt` bị `undefined`/null.
+   - **Xử lý:** Chuẩn hóa `createdAt` fallback an toàn và bọc `String(b.createdAt || '').localeCompare(String(a.createdAt || ''))`. Áp dụng tương tự cho `search.service.ts:51`.
+
+2. **Đồng bộ hiển thị giá tiền (Giá đúng ở trên - Giá gốc ở dưới):**
+   - Đã chuẩn hóa hiển thị trên toàn bộ các màn hình:
+     - `ProductCard.tsx`: Chuyển sang container cột (`flexDirection: 'column', alignItems: 'flex-start'`), giá bán hiện tại hiển thị ở trên, giá gốc gạch ngang hiển thị ngay bên dưới.
+     - `home.tsx` (Flash Sale & Top Rated cards): Căn chỉnh cột dọc, giá bán trên, giá gốc dưới.
+     - `favourite.tsx`: Căn chỉnh cột dọc `priceColumn`, giá bán trên, giá gốc dưới.
+     - `cart.tsx`: Cột `priceBlock` hiển thị giá bán ở trên, giá gốc ở dưới.
+     - `app/product/[id].tsx`: Tách `priceContainer` thành hàng trên (Giá bán lớn + Tình trạng kho hàng) và hàng dưới (Giá gốc gạch ngang + Tag giảm giá % bên dưới).
+
+3. **Phương thức thanh toán COD duy nhất cho người dùng mới:**
+   - Xóa bỏ tài liệu seed `card_visa_default` ("Visa Platinum") trong `seed.mjs`.
+   - Cập nhật `profile.service.ts`: Lọc bỏ triệt để id `card_visa_default` nếu còn tồn dư trên Cloud Firestore; người dùng đăng ký mới chỉ nhận duy nhất COD (`pay-cod`, mặc định: true).
+   - Thẻ thanh toán chỉ được lưu vào DB khi người dùng chủ động thực hiện "Thêm thẻ mới".
+
+4. **Tối ưu màn hình Thông báo:**
+   - Loại bỏ nút "Xong" thừa ở footer trong `app/notification.tsx`.
+   - Trạng thái rỗng hiển thị `EmptyState` sạch sẽ với nút bấm điều hướng "Khám phá sản phẩm".
+
+5. **Kiểm thử & Đóng gói:**
+   - 82/82 bài kiểm thử tự động pass 100%.
+   - TypeScript `tsc --noEmit` đạt 0 lỗi.
+   - Build và export Metro bundler sạch hoàn toàn trên cả Web và Android Hermes bytecode.
+
+---
+
+**KẾT LUẬN:** Toàn bộ các yêu cầu của người dùng đã được thực hiện trọn vẹn, chính xác, sạch sẽ, đạt chuẩn Definition of Done 100%.
 
 MISSION_COMPLETE

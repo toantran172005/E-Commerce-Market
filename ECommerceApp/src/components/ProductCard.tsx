@@ -62,7 +62,7 @@ export function ProductCard({
           <Text style={styles.reviewCount}>({product.reviewCount ?? 0})</Text>
         </View>
 
-        <View style={styles.priceRow}>
+        <View style={styles.priceContainer}>
           <Text style={styles.price} numberOfLines={1}>{formatMoney(product.price)}</Text>
           {product.originalPrice && product.originalPrice > product.price ? (
             <Text style={styles.oldPrice} numberOfLines={1}>{formatMoney(product.originalPrice)}</Text>
@@ -167,20 +167,20 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontWeight: '500',
   },
-  priceRow: {
+  priceContainer: {
     marginTop: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
-    gap: 4,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    minHeight: 36,
   },
   price: {
     fontSize: 14.5,
     fontWeight: '800',
     color: colors.dark,
-    flexShrink: 1,
   },
   oldPrice: {
+    marginTop: 2,
     fontSize: 11,
     fontWeight: '500',
     color: colors.grayLight,

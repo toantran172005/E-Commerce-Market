@@ -231,11 +231,6 @@ export default function NotificationScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* Footer Xong */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-        <PrimaryButton title="Xong" onPress={handleGoBack} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -345,18 +340,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '500',
     color: colors.textMuted,
-  },
-
-  /* Footer bo tròn */
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    overflow: 'hidden',
   },
 
   /* Modal chi tiết */

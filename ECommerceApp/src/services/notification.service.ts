@@ -85,7 +85,12 @@ export const NotificationService = {
     if (readIds.size > 0) {
       notifs = notifs.map((n) => (readIds.has(n.id) ? { ...n, read: true } : n));
     }
-    return notifs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return notifs
+      .map((n) => ({
+        ...n,
+        createdAt: n.createdAt ? String(n.createdAt) : new Date().toISOString(),
+      }))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   },
 
   /** Đánh dấu một thông báo là đã đọc */

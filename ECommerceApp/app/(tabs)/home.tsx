@@ -698,18 +698,18 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
-    gap: 4,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    minHeight: 36,
   },
   price: {
     fontSize: 14.5,
     fontWeight: '800',
     color: colors.dark,
-    flexShrink: 1,
   },
   oldPrice: {
+    marginTop: 2,
     fontSize: 11,
     fontWeight: '500',
     color: colors.grayLight,

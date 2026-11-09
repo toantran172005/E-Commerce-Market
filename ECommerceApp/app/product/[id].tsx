@@ -254,26 +254,30 @@ export default function ProductDetailScreen() {
             <Text style={styles.reviewsText}>({product.reviewCount ?? 0} đánh giá)</Text>
           </View>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatMoney(product.price)}</Text>
+          <View style={styles.priceContainer}>
+            <View style={styles.priceTopRow}>
+              <Text style={styles.price}>{formatMoney(product.price)}</Text>
+              <View style={styles.stockWrapper}>
+                <Ionicons
+                  name={isOutOfStock ? 'close-circle' : 'checkmark-circle'}
+                  size={14}
+                  color={isOutOfStock ? colors.danger : colors.success}
+                />
+                <Text style={[styles.stockText, { color: isOutOfStock ? colors.danger : colors.success }]}>
+                  {isOutOfStock ? 'Hết hàng' : `Còn hàng (${product.stock ?? 0})`}
+                </Text>
+              </View>
+            </View>
             {product.originalPrice && product.originalPrice > product.price && (
-              <Text style={styles.originalPrice}>{formatMoney(product.originalPrice)}</Text>
-            )}
-            {discountPercent != null && (
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{discountPercent}%</Text>
+              <View style={styles.priceBottomRow}>
+                <Text style={styles.originalPrice}>{formatMoney(product.originalPrice)}</Text>
+                {discountPercent != null && (
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountText}>-{discountPercent}%</Text>
+                  </View>
+                )}
               </View>
             )}
-            <View style={styles.stockWrapper}>
-              <Ionicons
-                name={isOutOfStock ? 'close-circle' : 'checkmark-circle'}
-                size={14}
-                color={isOutOfStock ? colors.danger : colors.success}
-              />
-              <Text style={[styles.stockText, { color: isOutOfStock ? colors.danger : colors.success }]}>
-                {isOutOfStock ? 'Hết hàng' : `Còn hàng (${product.stock ?? 0})`}
-              </Text>
-            </View>
           </View>
 
           <Text style={styles.description}>{product.description}</Text>
@@ -465,31 +469,37 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.gray,
   },
-  priceRow: {
+  priceContainer: {
+    marginBottom: spacing.md,
+  },
+  priceTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    justifyContent: 'space-between',
+  },
+  priceBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   price: {
     fontSize: 30,
     fontWeight: '800',
     color: colors.dark,
     letterSpacing: -0.8,
-    marginRight: spacing.md,
   },
   originalPrice: {
     fontSize: 15,
     fontWeight: '500',
     color: colors.placeholder,
     textDecorationLine: 'line-through',
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
   },
   discountBadge: {
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
-    marginRight: spacing.md,
   },
   discountText: {
     fontSize: 12,
@@ -499,7 +509,6 @@ const styles = StyleSheet.create({
   stockWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 'auto',
   },
   stockText: {
     fontSize: 13,

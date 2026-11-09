@@ -48,7 +48,10 @@ export const SearchService = {
       const snap = await getDocs(collection(db, 'users', uid, 'searchHistory'));
       if (!snap.empty) {
         const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SearchHistoryItem, 'id'>) }));
-        return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10);
+        return items
+          .map((item) => ({ ...item, createdAt: item.createdAt ? String(item.createdAt) : new Date().toISOString() }))
+          .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+          .slice(0, 10);
       }
       return [...mockHistoryDb];
     } catch {

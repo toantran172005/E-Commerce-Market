@@ -587,17 +587,6 @@ async function seedDatabase() {
       isDefault: true,
     });
 
-    // Seed default payment method
-    await setDoc(doc(db, 'users', user.uid, 'paymentMethods', 'card_visa_default'), {
-      id: 'card_visa_default',
-      type: 'card',
-      name: 'Visa Platinum',
-      detail: 'Visa •••• 4242',
-      expiry: '12/28',
-      isDefault: true,
-      color: '#1E3A8A',
-    });
-
     // Seed user settings
     await setDoc(doc(db, 'users', user.uid, 'settings', 'app'), {
       language: 'vi',
