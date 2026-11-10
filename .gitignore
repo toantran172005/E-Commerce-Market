@@ -1,0 +1,12 @@
+# AI Agent workspace
+.agent/
+
+# Dependencies and build outputs
+node_modules/
+.expo/
+dist/
+*.log
+
+# Environment variables
+.env
+.env.*

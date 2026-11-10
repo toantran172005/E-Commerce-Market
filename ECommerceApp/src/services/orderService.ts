@@ -185,19 +185,52 @@ export const OrderService = {
 
     try {
       const createdOrder = await runTransaction(db, async (transaction) => {
-        // 1. Đọc và xác thực từng sản phẩm trong Firestore
-        const verifiedItems: OrderItem[] = [];
-        let computedSubtotal = 0;
+        // ========================================================
+        // GIAI ĐOẠN 1: TẤT CẢ CÁC LỆNH ĐỌC (READS ONLY)
+        // Bắt buộc thực hiện trước toàn bộ các lệnh ghi trong Firestore
+        // ========================================================
+
+        // 1. Đọc tất cả sản phẩm
+        const productReads: {
+          rawItem: OrderItem;
+          prodRef: any;
+          prodSnap: any;
+        }[] = [];
 
         for (const rawItem of input.items) {
+          const prodRef = doc(db, 'products', rawItem.productId);
+          const prodSnap = await transaction.get(prodRef);
+          productReads.push({ rawItem, prodRef, prodSnap });
+        }
+
+        // 2. Đọc phương thức vận chuyển (nếu có)
+        let shipSnap: any = null;
+        if (input.shippingMethodId) {
+          const shipRef = doc(db, 'shippingMethods', input.shippingMethodId);
+          shipSnap = await transaction.get(shipRef);
+        }
+
+        // 3. Đọc voucher (nếu có)
+        let voucherSnap: any = null;
+        let voucherRef: any = null;
+        if (input.voucherCode) {
+          voucherRef = doc(db, 'vouchers', input.voucherCode);
+          voucherSnap = await transaction.get(voucherRef);
+        }
+
+        // ========================================================
+        // TÍNH TOÁN & XÁC THỰC TRONG BỘ NHỚ (IN-MEMORY COMPUTATION)
+        // ========================================================
+        const verifiedItems: OrderItem[] = [];
+        const productUpdates: { ref: any; newStock: number; newSoldCount: number }[] = [];
+        let computedSubtotal = 0;
+
+        for (const { rawItem, prodRef, prodSnap } of productReads) {
           const item = {
             ...rawItem,
             name: rawItem.name || (rawItem as any).productName || 'Sản phẩm',
             imageUrl: rawItem.imageUrl || (rawItem as any).productImage || '',
           };
-
-          const prodRef = doc(db, 'products', item.productId);
-          const prodSnap = await transaction.get(prodRef);
 
           let realPrice = item.price;
           let currentStock = 100;
@@ -216,10 +249,10 @@ export const OrderService = {
               );
             }
 
-            // Trừ tồn kho và tăng lượt bán
-            transaction.update(prodRef, {
-              stock: currentStock - item.quantity,
-              soldCount: (prodData.soldCount ?? 0) + item.quantity,
+            productUpdates.push({
+              ref: prodRef,
+              newStock: currentStock - item.quantity,
+              newSoldCount: (prodData.soldCount ?? 0) + item.quantity,
             });
           } else {
             // Check fallback mock products or test fixture
@@ -250,44 +283,36 @@ export const OrderService = {
           });
         }
 
-        // 2. Tính phí vận chuyển
+        // Tính phí vận chuyển
         let fee = 0;
         let freeOver = 500000;
         let shippingName = input.shippingMethodName ?? 'Giao hàng tiêu chuẩn';
 
-        if (input.shippingMethodId) {
-          const shipRef = doc(db, 'shippingMethods', input.shippingMethodId);
-          const shipSnap = await transaction.get(shipRef);
-          if (shipSnap.exists()) {
-            const shipData = shipSnap.data() as ShippingMethod;
-            fee = shipData.fee;
-            freeOver = shipData.freeOver;
-            shippingName = shipData.name;
-          }
+        if (shipSnap && shipSnap.exists()) {
+          const shipData = shipSnap.data() as ShippingMethod;
+          fee = shipData.fee;
+          freeOver = shipData.freeOver;
+          shippingName = shipData.name;
         }
 
         const baseShipping = computedSubtotal >= freeOver ? 0 : fee;
 
-        // 3. Xử lý Voucher nếu có
+        // Xử lý Voucher nếu có
         let discount = 0;
         let isFreeShip = false;
+        let voucherUpdate: { ref: any; newUsedCount: number } | null = null;
 
-        if (input.voucherCode) {
-          const voucherRef = doc(db, 'vouchers', input.voucherCode);
-          const voucherSnap = await transaction.get(voucherRef);
+        if (voucherSnap && voucherSnap.exists() && voucherRef) {
+          const voucher = voucherSnap.data() as Voucher;
+          if (voucher.isActive && voucher.usedCount < voucher.usageLimit) {
+            if (computedSubtotal >= voucher.minOrderValue) {
+              discount = computeVoucherDiscount(voucher, computedSubtotal, baseShipping);
+              if (voucher.type === 'freeShip') isFreeShip = true;
 
-          if (voucherSnap.exists()) {
-            const voucher = voucherSnap.data() as Voucher;
-            if (voucher.isActive && voucher.usedCount < voucher.usageLimit) {
-              if (computedSubtotal >= voucher.minOrderValue) {
-                discount = computeVoucherDiscount(voucher, computedSubtotal, baseShipping);
-                if (voucher.type === 'freeShip') isFreeShip = true;
-
-                // Tăng số lượt đã sử dụng voucher
-                transaction.update(voucherRef, {
-                  usedCount: (voucher.usedCount ?? 0) + 1,
-                });
-              }
+              voucherUpdate = {
+                ref: voucherRef,
+                newUsedCount: (voucher.usedCount ?? 0) + 1,
+              };
             }
           }
         }
@@ -295,6 +320,27 @@ export const OrderService = {
         const shippingFee = isFreeShip ? 0 : baseShipping;
         const totalAmount = computedSubtotal - discount + shippingFee;
 
+        // ========================================================
+        // GIAI ĐOẠN 2: TẤT CẢ CÁC LỆNH GHI (WRITES ONLY)
+        // Thực hiện tuần tự các update và set mà không có bất kỳ lệnh get nào
+        // ========================================================
+
+        // 1. Cập nhật tồn kho sản phẩm
+        for (const update of productUpdates) {
+          transaction.update(update.ref, {
+            stock: update.newStock,
+            soldCount: update.newSoldCount,
+          });
+        }
+
+        // 2. Cập nhật lượt dùng voucher
+        if (voucherUpdate) {
+          transaction.update(voucherUpdate.ref, {
+            usedCount: voucherUpdate.newUsedCount,
+          });
+        }
+
+        // 3. Tạo document đơn hàng
         const newOrder: Order = {
           id: orderId,
           userId: input.userId,
@@ -324,10 +370,9 @@ export const OrderService = {
           note: input.note,
         };
 
-        // Ghi document Order (loại bỏ toàn bộ trường undefined cho Firestore)
         transaction.set(doc(db, 'orders', orderId), stripUndefined(newOrder));
 
-        // Tạo thông báo cho user
+        // 4. Tạo thông báo cho user
         const notifRef = doc(collection(db, 'users', input.userId, 'notifications'));
         transaction.set(notifRef, {
           id: notifRef.id,
@@ -401,29 +446,49 @@ export const OrderService = {
           apiError('ORDER_CANCEL_NOT_ALLOWED', 'Đơn hàng đã đóng gói hoặc đang giao, không thể huỷ.');
         }
 
-        // Hoàn lại tồn kho cho từng sản phẩm nếu tồn tại trong Firestore
+        // ==========================================
+        // GIAI ĐOẠN 1: TẤT CẢ CÁC THAO TÁC READS
+        // ==========================================
+        // 1. Đọc tồn kho các sản phẩm liên quan
+        const productSnapshots: Array<{
+          ref: any;
+          snap: any;
+          quantity: number;
+        }> = [];
         for (const item of order.items) {
           const prodRef = doc(db, 'products', item.productId);
           const prodSnap = await transaction.get(prodRef);
-          if (prodSnap.exists()) {
-            const prodData = prodSnap.data() as Product;
-            transaction.update(prodRef, {
+          productSnapshots.push({ ref: prodRef, snap: prodSnap, quantity: item.quantity });
+        }
+
+        // 2. Đọc voucher nếu đơn có áp dụng
+        let voucherRef: any = null;
+        let voucherSnap: any = null;
+        if (order.voucherCode) {
+          voucherRef = doc(db, 'vouchers', order.voucherCode);
+          voucherSnap = await transaction.get(voucherRef);
+        }
+
+        // ==========================================
+        // GIAI ĐOẠN 2: TẤT CẢ CÁC THAO TÁC WRITES
+        // ==========================================
+        // 1. Hoàn lại tồn kho cho từng sản phẩm
+        for (const item of productSnapshots) {
+          if (item.snap.exists()) {
+            const prodData = item.snap.data() as Product;
+            transaction.update(item.ref, {
               stock: (prodData.stock ?? 0) + item.quantity,
               soldCount: Math.max((prodData.soldCount ?? 0) - item.quantity, 0),
             });
           }
         }
 
-        // Giảm usedCount nếu có dùng voucher
-        if (order.voucherCode) {
-          const voucherRef = doc(db, 'vouchers', order.voucherCode);
-          const voucherSnap = await transaction.get(voucherRef);
-          if (voucherSnap.exists()) {
-            const vData = voucherSnap.data() as Voucher;
-            transaction.update(voucherRef, {
-              usedCount: Math.max((vData.usedCount ?? 1) - 1, 0),
-            });
-          }
+        // 2. Giảm usedCount nếu có dùng voucher
+        if (voucherRef && voucherSnap && voucherSnap.exists()) {
+          const vData = voucherSnap.data() as Voucher;
+          transaction.update(voucherRef, {
+            usedCount: Math.max((vData.usedCount ?? 1) - 1, 0),
+          });
         }
 
         const now = new Date().toISOString();

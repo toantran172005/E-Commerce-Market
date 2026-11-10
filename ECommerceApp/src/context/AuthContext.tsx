@@ -34,10 +34,29 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Giả lập màn splash ngắn khi khởi tạo. Với API thật sẽ gọi GET /auth/me tại đây.
+  // Lắng nghe và đồng bộ trạng thái xác thực từ Firebase Auth
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 450);
-    return () => clearTimeout(timer);
+    let isMounted = true;
+    const unsubscribe = AuthService.onAuthStateChanged(async (firebaseUser) => {
+      if (!isMounted) return;
+      if (firebaseUser) {
+        try {
+          const profile = await AuthService.getProfile(firebaseUser.uid);
+          if (isMounted) setUser(profile);
+        } catch {}
+      }
+      if (isMounted) setIsLoading(false);
+    });
+
+    const fallbackTimer = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 1200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
