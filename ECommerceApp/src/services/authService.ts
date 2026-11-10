@@ -202,9 +202,14 @@ export const AuthService = {
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, { ...patch, updatedAt: new Date().toISOString() }, { merge: true });
 
-      // Nếu có đổi fullName và đang đăng nhập, cập nhật displayName trên auth
-      if (patch.fullName && auth.currentUser && auth.currentUser.uid === uid) {
-        await updateFirebaseProfile(auth.currentUser, { displayName: patch.fullName });
+      // Nếu có đổi fullName hoặc avatarUrl và đang đăng nhập, cập nhật trên Firebase Auth
+      if (auth.currentUser && auth.currentUser.uid === uid) {
+        const authUpdates: { displayName?: string; photoURL?: string } = {};
+        if (patch.fullName) authUpdates.displayName = patch.fullName;
+        if (patch.avatarUrl !== undefined) authUpdates.photoURL = patch.avatarUrl || '';
+        if (Object.keys(authUpdates).length > 0) {
+          await updateFirebaseProfile(auth.currentUser, authUpdates);
+        }
       }
 
       return await this.getProfile(uid);

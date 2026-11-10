@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -78,6 +79,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   profileInfo: {
     flex: 1,
@@ -235,29 +242,21 @@ export default function AccountScreen() {
     setLoggingOut(true);
     try {
       await logout();
-      router.replace('/(auth)/login');
+      router.replace('/(tabs)/home');
     } finally {
       loggingOutRef.current = false;
       setLoggingOut(false);
     }
   }, [logout, router]);
 
-  if (authLoading) {
-    return <LoadingView label="Đang tải hồ sơ..." />;
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const userName = user.fullName || user.displayName || 'Khách hàng';
-  const userEmail = user.email || 'Chưa có email';
-  const isPro = !user.isGuest;
-
   const processingCount = useMemo(
-    () => orders.filter((order) => order.status === 'processing').length,
+    () => (orders ?? []).filter((order) => order.status === 'processing').length,
     [orders],
   );
+
+  const userName = user?.fullName || user?.displayName || 'Khách';
+  const userEmail = user?.email || 'Đăng nhập để xem thông tin';
+  const isPro = Boolean(user && !user.isGuest);
 
   const orderSubtitle = ordersLoading
     ? 'Đang tải đơn hàng...'
@@ -347,6 +346,10 @@ export default function AccountScreen() {
     },
   ];
 
+  if (authLoading) {
+    return <LoadingView label="Đang tải hồ sơ..." />;
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
@@ -360,7 +363,11 @@ export default function AccountScreen() {
 
         <View style={styles.profileCard}>
           <View style={styles.avatar} accessibilityLabel="Ảnh đại diện">
-            <Ionicons name="person" size={30} color={colors.white} />
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Ionicons name="person" size={30} color={colors.white} />
+            )}
           </View>
 
           <View style={styles.profileInfo}>
@@ -375,13 +382,13 @@ export default function AccountScreen() {
           </View>
 
           <Pressable
-            onPress={() => router.push('/update-user')}
+            onPress={() => router.push(user ? '/update-user' : '/(auth)/login')}
             style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
             hitSlop={4}
             accessibilityRole="button"
-            accessibilityLabel="Chỉnh sửa hồ sơ"
+            accessibilityLabel={user ? 'Chỉnh sửa hồ sơ' : 'Đăng nhập'}
           >
-            <Ionicons name="pencil" size={18} color={colors.white} />
+            <Ionicons name={user ? 'pencil' : 'log-in-outline'} size={18} color={colors.white} />
           </Pressable>
         </View>
 
@@ -394,38 +401,54 @@ export default function AccountScreen() {
         <Text style={styles.sectionTitle}>TRỢ GIÚP</Text>
         <MenuSection items={supportItems} />
 
-        <Pressable
-          onPress={() => {
-            Alert.alert('Đăng xuất', 'Bạn có muốn đăng xuất khỏi tài khoản?', [
-              { text: 'Huỷ', style: 'cancel' },
-              {
-                text: 'Đăng xuất',
-                style: 'destructive',
-                onPress: () => {
-                  void handleLogout();
+        {user ? (
+          <Pressable
+            onPress={() => {
+              Alert.alert('Đăng xuất', 'Bạn có muốn đăng xuất khỏi tài khoản?', [
+                { text: 'Huỷ', style: 'cancel' },
+                {
+                  text: 'Đăng xuất',
+                  style: 'destructive',
+                  onPress: () => {
+                    void handleLogout();
+                  },
                 },
-              },
-            ]);
-          }}
-          disabled={loggingOut}
-          style={({ pressed }) => [
-            styles.logoutButton,
-            loggingOut && styles.logoutButtonDisabled,
-            pressed && styles.pressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Đăng xuất"
-          accessibilityState={{ disabled: loggingOut, busy: loggingOut }}
-        >
-          {loggingOut ? (
-            <ActivityIndicator size="small" color={colors.danger} />
-          ) : (
-            <Ionicons name="log-out-outline" size={20} color={colors.danger} />
-          )}
-          <Text style={styles.logoutText}>
-            {loggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
-          </Text>
-        </Pressable>
+              ]);
+            }}
+            disabled={loggingOut}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              loggingOut && styles.logoutButtonDisabled,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Đăng xuất"
+            accessibilityState={{ disabled: loggingOut, busy: loggingOut }}
+          >
+            {loggingOut ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+            )}
+            <Text style={styles.logoutText}>
+              {loggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.push('/(auth)/login')}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Đăng nhập"
+          >
+            <Ionicons name="log-in-outline" size={20} color={colors.primary} />
+            <Text style={[styles.logoutText, { color: colors.primary }]}>Đăng nhập / Đăng ký</Text>
+          </Pressable>
+        )}
 
         <Text style={styles.versionText}>Phiên bản 1.0.4 · E-Commerce Market</Text>
       </ScrollView>
