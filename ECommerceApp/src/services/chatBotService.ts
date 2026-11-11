@@ -2,6 +2,8 @@
 
 export type ChatIntentName =
   | 'search_products'
+  | 'view_favourites'
+  | 'view_cart'
   | 'add_to_cart'
   | 'remove_from_cart'
   | 'add_to_favourites'
@@ -73,6 +75,7 @@ export interface ChatOrderResult {
 export type ChatQuickAction =
   | { type: 'login'; label: string }
   | { type: 'add_address'; label: string }
+  | { type: 'view_orders'; label: string }
   | { type: 'confirm_order'; label: string; orderDraft: ChatOrderDraft }
   | { type: 'add_to_cart'; label: string; productId: string; quantity?: number }
   | { type: 'add_to_favourites'; label: string; productId: string }
@@ -164,6 +167,8 @@ type UnknownMethod = (...args: unknown[]) => unknown;
 
 const CHAT_INTENTS: ChatIntentName[] = [
   'search_products',
+  'view_favourites',
+  'view_cart',
   'add_to_cart',
   'remove_from_cart',
   'add_to_favourites',
@@ -370,9 +375,10 @@ function normalizeCartItems(value: unknown): ChatCartItem[] {
     const product =
       normalizeProduct(record.product ?? record.productData ?? record.item) ??
       normalizeProduct(record);
-    const productId = toStringValue(
-      record.productId ?? record.id ?? product?.id
+    const rawId = toStringValue(
+      product?.id ?? record.productId ?? (record.id ? String(record.id).split('::')[0] : '')
     );
+    const productId = rawId.includes('::') ? rawId.split('::')[0] : rawId;
     const quantity =
       toNumberValue(record.quantity ?? record.qty ?? record.count) ?? 1;
 
@@ -744,31 +750,32 @@ function createOrderMethod(
           .join(', ')
       : 'Địa chỉ nhận hàng';
 
+    const cleanItems = draft.items.map((item) => {
+      const pId = item.productId.includes('::') ? item.productId.split('::')[0] : item.productId;
+      return {
+        productId: pId,
+        quantity: Math.max(1, item.quantity),
+        name: item.product?.name ?? pId,
+        price: item.unitPrice ?? item.product?.price ?? 0,
+        imageUrl: item.product?.imageUrl ?? '',
+      };
+    });
+
     const payload = {
       userId: user?.userId || '',
       customerName: addr?.fullName || user?.displayName || 'Khách hàng',
       phoneNumber: addr?.phone || '0901234567',
       shippingAddress: fullAddressText,
-      items: draft.items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        name: item.product?.name ?? item.productId,
-        price: item.unitPrice ?? item.product?.price ?? 0,
-        imageUrl: item.product?.imageUrl ?? '',
-      })),
-      note: draft.note,
+      items: cleanItems,
+      note: draft.note || '',
       totalAmount: draft.totalAmount,
     };
 
-    let rawResult: unknown;
-    try {
-      rawResult = await Promise.resolve(orderFn(payload));
-    } catch {
-      rawResult = await Promise.resolve(
-        orderFn(payload.items, payload.shippingAddress, payload.note)
-      );
+    if (!payload.userId) {
+      throw new Error('Vui lòng đăng nhập để tiến hành đặt hàng.');
     }
 
+    const rawResult = await Promise.resolve(orderFn(payload));
     return normalizeOrderResult(rawResult);
   };
 }
@@ -844,6 +851,22 @@ function normalizeIntent(raw: Record<string, unknown>): ChatIntent {
   if (CHAT_INTENTS.includes(rawIntent as ChatIntentName)) {
     intent = rawIntent as ChatIntentName;
   } else if (
+    rawIntent.includes('view_fav') ||
+    rawIntent.includes('list_fav') ||
+    rawIntent.includes('show_fav') ||
+    rawIntent.includes('xem_thich') ||
+    rawIntent.includes('yeu_thich') && (rawIntent.includes('xem') || rawIntent.includes('danh_sach'))
+  ) {
+    intent = 'view_favourites';
+  } else if (
+    rawIntent.includes('view_cart') ||
+    rawIntent.includes('list_cart') ||
+    rawIntent.includes('show_cart') ||
+    rawIntent.includes('xem_gio') ||
+    rawIntent.includes('gio_hang') && (rawIntent.includes('xem') || rawIntent.includes('kiem_tra'))
+  ) {
+    intent = 'view_cart';
+  } else if (
     rawIntent.includes('search') ||
     rawIntent.includes('find') ||
     rawIntent.includes('filter') ||
@@ -857,8 +880,10 @@ function normalizeIntent(raw: Record<string, unknown>): ChatIntent {
     intent = 'remove_from_cart';
   } else if (rawIntent.includes('remove') && (rawIntent.includes('fav') || rawIntent.includes('thich'))) {
     intent = 'remove_from_favourites';
-  } else if (rawIntent.includes('fav') || rawIntent.includes('thich')) {
+  } else if (rawIntent.includes('add') && (rawIntent.includes('fav') || rawIntent.includes('thich'))) {
     intent = 'add_to_favourites';
+  } else if (rawIntent.includes('fav') || rawIntent.includes('thich')) {
+    intent = 'view_favourites';
   } else if (rawIntent.includes('order') || rawIntent.includes('buy') || rawIntent.includes('dat')) {
     intent = 'place_order';
   } else if (rawIntent.includes('logout') || rawIntent.includes('thoat') || rawIntent.includes('dang xuat')) {
@@ -944,6 +969,13 @@ async function buildSystemPrompt(runtime: ChatBotRuntime): Promise<string> {
     )
     .join('\n');
 
+  const popularSummary = catalogProducts
+    .slice()
+    .sort((a, b) => ((b as any).soldCount ?? 0) - ((a as any).soldCount ?? 0))
+    .slice(0, 5)
+    .map((p) => `"${p.name}" (ID: ${p.id}, Giá: ${formatCurrencyVND(p.price)})`)
+    .join('\n');
+
   return `Bạn là "Trợ Lý AI" thông minh, hiểu biết sâu rộng và tận tâm của ứng dụng E-Commerce Shoppe.
 Phong cách giao tiếp: Tự nhiên, thông thái, dí dỏm, ngắn gọn, xưng "mình" và gọi khách là "bạn". Bạn có thể giải đáp MỌI câu hỏi từ tư vấn công nghệ chuyên sâu (học lập trình/thiết kế nên dùng laptop nào, so sánh sản phẩm, giải thích thông số...), chia sẻ kinh nghiệm, chém gió thân thiện cho đến chăm sóc khách hàng.
 
@@ -960,39 +992,48 @@ ${cartSummary}
 - DANH SÁCH SẢN PHẨM YÊU THÍCH HIỆN CÓ CỦA BẠN NÀY (HÃY GHI NHỚ KỸ CẢ CŨ LẪN MỚI):
 ${favSummary}
 
+TOP SẢN PHẨM BÁN CHẠY NHẤT CỬA HÀNG HIỆN TẠI (Dựa trên số lượng bán thực tế):
+${popularSummary || 'Tai nghe Apple AirPods Pro 2, iPhone 16 Pro Max, Sony WH-1000XM5, Laptop Asus Vivobook OLED, Xiaomi Band 8'}
+
 DANH MỤC SẢN PHẨM CỬA HÀNG ĐANG CÓ (Chỉ được chọn từ đây):
 ${catalogSummary || 'Chưa tải được danh mục.'}
 
 QUY TẮC XỬ LÝ QUAN TRỌNG:
 1. HIỂU ĐÚNG NGỮ CẢNH HỘI THOẠI & PHẢN HỒI THÔNG MINH:
-- Nếu người dùng thắc mắc, hỏi lại hoặc sửa lưng bạn (ví dụ: "cái đấy là vòng đeo tay và điện thoại mà?", "sao tôi hỏi laptop mà gợi ý điện thoại?"):
+- Nếu người dùng hỏi sản phẩm bán chạy / nổi bật / hot ("Tìm sản phẩm bán chạy", "bán chạy nhất", "gợi ý đồ hot"):
+  -> Hãy giới thiệu ngay danh sách TOP SẢN PHẨM BÁN CHẠY NHẤT ở trên. Trả về intent "search_products", gán danh sách ID sản phẩm bán chạy vào "productIds". TUYỆT ĐỐI KHÔNG nói "chưa có dữ liệu thống kê"!
+- Nếu người dùng thắc mắc, hỏi lại hoặc sửa lưng bạn:
   -> Hãy thẳng thắn nhận lỗi, xin lỗi vì gợi ý nhầm và trả lời đúng trọng tâm câu hỏi của khách hàng. Tuyệt đối không trả lời máy móc hay lặp lại các câu mặc định!
 - Nếu người dùng tìm kiếm sản phẩm với tiêu chí cụ thể (ví dụ: "laptop dưới 15 triệu"):
-  -> Kiểm tra kỹ danh mục sản phẩm ở trên. Nếu KHÔNG CÓ laptop nào dưới 15 triệu, hãy nói thật rõ ràng và lịch sự: "Hiện tại cửa hàng mình chưa có mẫu laptop nào có mức giá dưới 15 triệu. Cửa hàng hiện có [tên laptop và giá nếu có], bạn có muốn tham khảo không?". TUYỆT ĐỐI KHÔNG trả về các sản phẩm khác loại như vòng đeo tay hay điện thoại rồi bảo đó là laptop!
+  -> Kiểm tra kỹ danh mục sản phẩm ở trên (có Asus Vivobook OLED 13.990.000đ và Lenovo IdeaPad Slim 3 11.490.000đ). Trả về đúng các mẫu laptop này!
 
-2. QUẢN LÝ SẢN PHẨM YÊU THÍCH:
-- Danh sách yêu thích của người dùng đã được liệt kê chi tiết ở trên ("DANH SÁCH SẢN PHẨM YÊU THÍCH HIỆN CÓ"). Bạn nhìn thấy TOÀN BỘ các sản phẩm này (kể cả cũ lẫn mới).
-- Khi người dùng bảo xóa sản phẩm yêu thích (ví dụ: "xóa sản phẩm kia", "xóa laptop khỏi yêu thích", "bỏ thích sản phẩm A"):
-  -> So khớp với danh sách yêu thích ở trên. Tìm đúng sản phẩm người dùng muốn xóa.
-  -> Trả về intent "remove_from_favourites", gán "productId" và "productName" đúng của sản phẩm cần xóa, kèm câu trả lời "Mình đã xóa [Tên sản phẩm] khỏi danh sách yêu thích của bạn."
-  -> Nếu không rõ người dùng muốn xóa sản phẩm nào trong số các sản phẩm yêu thích, hãy liệt kê tên các sản phẩm đang có trong yêu thích và hỏi người dùng muốn xóa món nào.
+2. QUẢN LÝ SẢN PHẨM YÊU THÍCH & GIỎ HÀNG:
+- Khi người dùng hỏi xem danh sách yêu thích ("Tôi có những sản phẩm yêu thích nào?", "Xem yêu thích", "Có sản phẩm yêu thích nào"):
+  -> Trả về intent "view_favourites". Reply tóm tắt: "Bạn đang có [X] sản phẩm trong danh sách yêu thích: [Tên các món]". TUYỆT ĐỐI KHÔNG trả về "Mình sẽ thêm sản phẩm vào danh sách yêu thích" khi họ chỉ đang hỏi xem!
+- Khi người dùng bảo xóa sản phẩm yêu thích:
+  -> So khớp với danh sách yêu thích ở trên. Tìm đúng sản phẩm người dùng muốn xóa. Trả về intent "remove_from_favourites", gán "productId" và "productName".
+- Khi người dùng hỏi xem giỏ hàng ("Giỏ hàng có gì?", "Xem giỏ"):
+  -> Trả về intent "view_cart".
 
-3. PHÂN QUYỀN GUEST / KHÁCH & ĐĂNG XUẤT:
+3. ĐẶT HÀNG QUA CHAT:
+- Khi người dùng yêu cầu đặt hàng (ví dụ: "đặt hàng", "đặt các sản phẩm trong giỏ", "mua ngay món này"):
+  -> Trả về intent "place_order".
+  -> Nếu họ muốn mua món cụ thể, gán "productName" hoặc "productId". Nếu muốn đặt giỏ hàng, để "productId" trống để hệ thống tự lấy toàn bộ giỏ hàng.
+
+4. PHÂN QUYỀN GUEST / KHÁCH & ĐĂNG XUẤT:
 - Khi người dùng yêu cầu đăng xuất (ví dụ: "đăng xuất", "đăng xuất tài khoản", "logout", "thoát tài khoản"):
   -> Nếu đã đăng nhập: Trả lời câu chào tạm biệt thân thiện: "Mình đã đăng xuất tài khoản thành công cho bạn rồi nhé. Hẹn gặp lại bạn sớm!", với intent: "logout".
   -> Nếu là KHÁCH (chưa đăng nhập): Trả lời: "Bạn hiện đang ở chế độ khách vãng lai (chưa đăng nhập) nên không cần đăng xuất nhé!".
-- Nếu là KHÁCH (chưa đăng nhập) mà yêu cầu thêm vào giỏ, thêm/xóa yêu thích hoặc đặt hàng: Lịch sự nhắc họ cần đăng nhập để thực hiện.
 
-4. XỬ LÝ YÊU CẦU NHẠY CẢM HOẶC KHÔNG THỂ XỬ LÝ:
+5. XỬ LÝ YÊU CẦU NHẠY CẢM HOẶC KHÔNG THỂ XỬ LÝ:
 - TUYỆT ĐỐI KHÔNG BAO GIỜ trả lời câu máy móc như "Mình đã ghi nhận yêu cầu của bạn".
 - Nếu người dùng yêu cầu đưa API key, mật khẩu, code backend, hack hệ thống: Hãy lịch sự từ chối và xin lỗi: "Xin lỗi bạn, vì lý do bảo mật và an toàn thông tin, mình không thể cung cấp API key hoặc thông tin quản trị hệ thống."
-- Nếu người dùng hỏi điều ngoài khả năng hoặc không thể hỗ trợ: Hãy thành thật xin lỗi và giải thích rõ lý do một cách tự nhiên.
 
-5. ĐỊNH DẠNG TRẢ VỀ:
+6. ĐỊNH DẠNG TRẢ VỀ:
 BẮT BUỘC trả về một JSON object duy nhất, không bọc markdown \`\`\`json:
 {
   "reply": "câu trả lời tự nhiên, thân thiện và chính xác cho khách hàng",
-  "intent": "search_products|add_to_cart|remove_from_cart|add_to_favourites|remove_from_favourites|place_order|logout|policy_question|general|greeting",
+  "intent": "search_products|view_favourites|view_cart|add_to_cart|remove_from_cart|add_to_favourites|remove_from_favourites|place_order|logout|policy_question|general|greeting",
   "productId": "id của sản phẩm nếu áp dụng thao tác (thêm/xóa/xem)",
   "productName": "tên sản phẩm tương ứng",
   "productIds": ["id1", "id2"],
@@ -1103,9 +1144,24 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
   } else if (/(xoa|bo|remove|go).*(yeu thich|favorite|thich)/.test(normalized)) {
     intent = 'remove_from_favourites';
     reply = 'Mình sẽ kiểm tra và xóa sản phẩm khỏi danh sách yêu thích cho bạn.';
-  } else if (/(yeu thich|favorite|favourite|tym|tha tim|thich)/.test(normalized)) {
+  } else if (
+    /(co.*yeu thich.*nao|danh sach.*yeu thich|xem.*yeu thich|nhung.*yeu thich|cac.*yeu thich|yeu thich.*co gi|co.*thich.*nao|xem.*thich|san pham.*yeu thich)/.test(
+      normalized
+    )
+  ) {
+    intent = 'view_favourites';
+    reply = '';
+  } else if (/(yeu thich|favorite|favourite|tym|tha tim|them.*thich)/.test(normalized)) {
     intent = 'add_to_favourites';
     reply = 'Mình sẽ thêm sản phẩm vào danh sách yêu thích của bạn.';
+  } else if (
+    /(xem.*gio|gio hang.*co gi|kiem tra.*gio|trong gio.*co gi|cac san pham trong gio)/.test(
+      normalized
+    ) &&
+    !/(dat hang|dat don|thanh toan|mua)/.test(normalized)
+  ) {
+    intent = 'view_cart';
+    reply = '';
   } else if (/(them.*gio|cho.*gio|mua|add to cart|gio hang)/.test(normalized)) {
     intent = 'add_to_cart';
     reply = 'Mình sẽ kiểm tra và thêm sản phẩm vào giỏ hàng cho bạn.';
@@ -1255,9 +1311,32 @@ async function handleSearchProducts(
   intent: ChatIntent,
   runtime: ChatBotRuntime
 ): Promise<ChatBotResponse> {
+  const all = await runtime.catalog.getAllProducts();
+
+  // 0. Check if user is asking for best-sellers / popular
+  const isPopularQuery =
+    (intent.productQuery?.query && /(ban chay|hot|noi bat|pho bien|top|best seller)/i.test(intent.productQuery.query)) ||
+    (intent.productName && /(ban chay|hot|noi bat|pho bien|top|best seller)/i.test(intent.productName)) ||
+    (intent.reply && /(bán chạy|nổi bật|hot)/i.test(intent.reply) && (!intent.productIds || intent.productIds.length === 0));
+
+  if (isPopularQuery) {
+    const popularProds = [...all]
+      .sort((a, b) => ((b as any).soldCount ?? 0) - ((a as any).soldCount ?? 0))
+      .slice(0, 5);
+
+    if (popularProds.length > 0) {
+      return {
+        intent: 'search_products',
+        reply: intent.reply && !intent.reply.includes('không dám gợi ý')
+          ? intent.reply
+          : 'Dưới đây là các sản phẩm công nghệ bán chạy và được yêu thích nhất tại cửa hàng:',
+        products: popularProds,
+      };
+    }
+  }
+
   // If DeepSeek returned specific product IDs that matched
   if (intent.productIds && intent.productIds.length > 0) {
-    const all = await runtime.catalog.getAllProducts();
     let matched = all.filter((p) => intent.productIds!.includes(p.id));
     if (intent.productQuery?.maxPrice != null) {
       matched = matched.filter((p) => p.price <= intent.productQuery!.maxPrice!);
@@ -1529,6 +1608,76 @@ async function handlePlaceOrder(
   };
 }
 
+async function handleViewFavourites(
+  intent: ChatIntent,
+  runtime: ChatBotRuntime
+): Promise<ChatBotResponse> {
+  const favs = runtime.favourites.getProducts();
+
+  if (favs.length === 0) {
+    return {
+      intent: 'view_favourites',
+      reply:
+        intent.reply && !intent.reply.includes('sẽ thêm')
+          ? intent.reply
+          : 'Hiện tại bạn chưa có sản phẩm nào trong danh sách yêu thích. Bạn có thể nhấn biểu tượng trái tim ở các sản phẩm để lưu lại nhé!',
+      quickActions: [
+        { type: 'suggestion', label: '🔍 Tìm sản phẩm bán chạy', value: 'Tìm sản phẩm bán chạy' },
+      ],
+    };
+  }
+
+  return {
+    intent: 'view_favourites',
+    reply:
+      intent.reply && !intent.reply.includes('sẽ thêm')
+        ? intent.reply
+        : `Bạn đang có ${favs.length} sản phẩm trong danh sách yêu thích:`,
+    products: favs,
+    quickActions: [
+      { type: 'suggestion', label: '🛒 Đặt hàng các sản phẩm trong giỏ', value: 'Đặt hàng các sản phẩm trong giỏ' },
+      { type: 'suggestion', label: '🔍 Tìm sản phẩm khác', value: 'Tìm sản phẩm bán chạy' },
+    ],
+  };
+}
+
+async function handleViewCart(
+  intent: ChatIntent,
+  runtime: ChatBotRuntime
+): Promise<ChatBotResponse> {
+  const cartItems = runtime.cart.getItems();
+
+  if (cartItems.length === 0) {
+    return {
+      intent: 'view_cart',
+      reply: intent.reply || 'Giỏ hàng của bạn đang trống. Bạn muốn tìm mua sản phẩm nào hôm nay?',
+      quickActions: [
+        { type: 'suggestion', label: '🔍 Tìm sản phẩm bán chạy', value: 'Tìm sản phẩm bán chạy' },
+      ],
+    };
+  }
+
+  const products = cartItems
+    .map((item) => item.product)
+    .filter((p): p is ChatProduct => Boolean(p));
+
+  const total = cartItems.reduce(
+    (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
+    0
+  );
+
+  return {
+    intent: 'view_cart',
+    reply:
+      intent.reply ||
+      `Giỏ hàng của bạn hiện có ${cartItems.length} sản phẩm, tổng cộng ${formatCurrencyVND(total)}:`,
+    products: products.length > 0 ? products : undefined,
+    quickActions: [
+      { type: 'suggestion', label: '🛒 Đặt hàng các sản phẩm trong giỏ', value: 'Đặt hàng các sản phẩm trong giỏ' },
+    ],
+  };
+}
+
 async function handleIntent(
   intent: ChatIntent,
   runtime: ChatBotRuntime
@@ -1540,6 +1689,10 @@ async function handleIntent(
   switch (intent.intent) {
     case 'search_products':
       return handleSearchProducts(intent, runtime);
+    case 'view_favourites':
+      return handleViewFavourites(intent, runtime);
+    case 'view_cart':
+      return handleViewCart(intent, runtime);
     case 'add_to_cart':
       return handleAddToCart(intent, runtime);
     case 'add_to_favourites':
@@ -1646,6 +1799,12 @@ export async function executeChatAction(
     case 'confirm_order':
       return createOrderFromDraft(action.orderDraft, runtime);
 
+    case 'view_orders':
+      return {
+        intent: 'general',
+        reply: 'Đang chuyển đến danh sách đơn hàng của bạn...',
+      };
+
     case 'login':
       return {
         intent: 'general',
@@ -1688,11 +1847,15 @@ export async function createOrderFromDraft(
   }
 
   const result = await runtime.orders.createOrder(draft);
-  const orderCode = result.code ?? result.orderId;
+  const orderCode = (result.code && result.code !== 'unknown') ? result.code : result.orderId;
 
   return {
     intent: 'place_order',
     reply: `🎉 Đặt hàng thành công! Mã đơn của bạn là #${orderCode}. Cửa hàng sẽ chuẩn bị và giao hàng sớm nhất cho bạn nhé!`,
+    quickActions: [
+      { type: 'view_orders', label: '📦 Xem đơn hàng' },
+      { type: 'suggestion', label: '🔍 Tiếp tục mua sắm', value: 'Tìm sản phẩm bán chạy' },
+    ],
   };
 }
 
