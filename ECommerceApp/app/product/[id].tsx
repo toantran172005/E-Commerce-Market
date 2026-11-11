@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -29,6 +30,7 @@ import {
   ProductDescriptionView,
   ProductReviewsList,
 } from '../../src/components';
+import { useAuth } from '../../src/context/AuthContext';
 import { useCart } from '../../src/context/CartContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useAsync } from '../../src/hooks/useAsync';
@@ -42,6 +44,7 @@ const CAROUSEL_HEIGHT = 340;
 
 export default function ProductDetailScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const productId = id ?? '';
 
@@ -122,21 +125,54 @@ export default function ProductDetailScreen() {
   }, [product]);
 
   const handleToggleFavourite = useCallback(() => {
+    if (user?.isGuest || !user) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để lưu sản phẩm vào danh sách yêu thích.',
+        [
+          { text: 'Huỷ', style: 'cancel' },
+          { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+        ],
+      );
+      return;
+    }
     if (product) toggleFavourite(product);
-  }, [product, toggleFavourite]);
+  }, [product, toggleFavourite, user, router]);
 
   const handleAddToCart = useCallback(() => {
     if (!product || isOutOfStock) return;
+    if (user?.isGuest || !user) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.',
+        [
+          { text: 'Huỷ', style: 'cancel' },
+          { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+        ],
+      );
+      return;
+    }
     addItem(product, 1, selectedVariantId);
     setToastMessage('Đã thêm vào giỏ hàng');
     setToastVisible(true);
-  }, [product, isOutOfStock, addItem, selectedVariantId]);
+  }, [product, isOutOfStock, addItem, selectedVariantId, user, router]);
 
   const handleBuyNow = useCallback(() => {
     if (!product || isOutOfStock) return;
+    if (user?.isGuest || !user) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để tiến hành đặt hàng.',
+        [
+          { text: 'Huỷ', style: 'cancel' },
+          { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+        ],
+      );
+      return;
+    }
     addItem(product, 1, selectedVariantId);
     router.push('/checkout');
-  }, [product, isOutOfStock, addItem, selectedVariantId, router]);
+  }, [product, isOutOfStock, addItem, selectedVariantId, router, user]);
 
   if (loading) {
     return <LoadingView />;

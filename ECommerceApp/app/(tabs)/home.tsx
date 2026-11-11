@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -218,9 +219,20 @@ export default function HomeScreen() {
 
   const handleToggleFavourite = useCallback(
     (product: Product) => {
+      if (user?.isGuest || !user) {
+        Alert.alert(
+          'Yêu cầu đăng nhập',
+          'Vui lòng đăng nhập để lưu sản phẩm vào danh sách yêu thích.',
+          [
+            { text: 'Huỷ', style: 'cancel' },
+            { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+          ],
+        );
+        return;
+      }
       toggleFavourite(product);
     },
-    [toggleFavourite],
+    [toggleFavourite, user, router],
   );
 
   const handleSelectCategory = useCallback(

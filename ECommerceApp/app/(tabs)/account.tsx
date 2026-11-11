@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../src/constants/theme';
 import { ListItemRow } from '../../src/components/ListItemRow';
 import { LoadingView } from '../../src/components/LoadingView';
@@ -235,6 +235,24 @@ export default function AccountScreen() {
     }
   }, [logout, router]);
 
+  const isGuestUser = !authLoading && (user?.isGuest || !user);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isGuestUser) {
+        Alert.alert(
+          'Yêu cầu đăng nhập',
+          'Vui lòng đăng nhập để truy cập thông tin tài khoản và đơn hàng.',
+          [
+            { text: 'Đăng nhập ngay', onPress: () => router.push('/(auth)/login') },
+            { text: 'Về trang chủ', style: 'cancel', onPress: () => router.replace('/(tabs)/home') },
+          ],
+          { cancelable: false },
+        );
+      }
+    }, [isGuestUser, router]),
+  );
+
   const processingCount = useMemo(
     () => (orders ?? []).filter((order) => order.status === 'processing').length,
     [orders],
@@ -335,6 +353,28 @@ export default function AccountScreen() {
 
   if (authLoading) {
     return <LoadingView label="Đang tải hồ sơ..." />;
+  }
+
+  if (isGuestUser) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl }}>
+          <Ionicons name="person-circle-outline" size={80} color={colors.primary} />
+          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.dark, marginTop: spacing.md }}>
+            Yêu cầu đăng nhập
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs, marginBottom: spacing.xl, lineHeight: 20 }}>
+            Bạn đang truy cập với tư cách Khách. Vui lòng đăng nhập để xem thông tin tài khoản, đơn hàng và cài đặt.
+          </Text>
+          <Pressable
+            style={{ backgroundColor: colors.primary, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl, borderRadius: radius.pill }}
+            onPress={() => router.push('/(auth)/login')}
+          >
+            <Text style={{ color: colors.white, fontSize: 16, fontWeight: '700' }}>Đăng nhập ngay</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

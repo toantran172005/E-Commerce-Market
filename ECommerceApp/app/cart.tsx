@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -17,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { EmptyState, ScreenHeader } from '../src/components';
 import { colors, radius, spacing } from '../src/constants/theme';
+import { useAuth } from '../src/context/AuthContext';
 import { useCart } from '../src/context/CartContext';
 import { getErrorMessage } from '../src/services/http';
 import { formatMoney } from '../src/utils/format';
@@ -77,6 +79,8 @@ export default function CartScreen() {
     }
   }, [applyVoucher, promoCode]);
 
+  const { user } = useAuth();
+
   const handleRemoveVoucher = useCallback(() => {
     removeVoucher();
     setPromoCode('');
@@ -85,8 +89,19 @@ export default function CartScreen() {
 
   const handleCheckout = useCallback(() => {
     if (selectedCount === 0) return;
+    if (user?.isGuest || !user) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để tiến hành thanh toán và đặt hàng.',
+        [
+          { text: 'Huỷ', style: 'cancel' },
+          { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+        ],
+      );
+      return;
+    }
     router.push('/checkout');
-  }, [router, selectedCount]);
+  }, [router, selectedCount, user]);
 
   const renderItem = useCallback<ListRenderItem<CartItem>>(
     ({ item }) => {

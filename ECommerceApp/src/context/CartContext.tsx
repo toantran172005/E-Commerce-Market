@@ -98,12 +98,12 @@ export function CartProvider({
     };
   }, [user?.uid, resetKey]);
 
-  // Tự động lưu giỏ hàng lên Firestore khi items thay đổi
+  // Tự động lưu giỏ hàng lên Firestore khi items thay đổi (chỉ cho user đã đăng nhập, không lưu cho guest)
   useEffect(() => {
-    if (isLoadedRef.current && user?.uid) {
+    if (isLoadedRef.current && user?.uid && !user.isGuest) {
       void CartService.syncCart(user.uid, items);
     }
-  }, [items, user?.uid]);
+  }, [items, user?.uid, user?.isGuest]);
 
   const selectedShipping = useMemo(() => {
     return shippingMethods.find((s) => s.id === selectedShippingId) ?? shippingMethods[0] ?? DEFAULT_SHIPPING_METHOD;

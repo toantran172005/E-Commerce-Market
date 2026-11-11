@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import {
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -13,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Product } from '../../src/types';
 import { colors, radius, spacing } from '../../src/constants/theme';
+import { useAuth } from '../../src/context/AuthContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useCart } from '../../src/context/CartContext';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -24,6 +26,7 @@ const GRID_GAP = spacing.md; // 12
 
 export default function FavouriteScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { favourites, toggleFavourite } = useFavourites();
   const { addItem, totalItems } = useCart();
   const { width: screenWidth } = useWindowDimensions();
@@ -42,9 +45,20 @@ export default function FavouriteScreen() {
 
   const handleAddToCart = useCallback(
     (product: Product) => {
+      if (user?.isGuest || !user) {
+        Alert.alert(
+          'Yêu cầu đăng nhập',
+          'Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.',
+          [
+            { text: 'Huỷ', style: 'cancel' },
+            { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+          ],
+        );
+        return;
+      }
       addItem(product, 1);
     },
-    [addItem],
+    [addItem, user, router],
   );
 
   const handleRemoveFavourite = useCallback(
@@ -143,6 +157,26 @@ export default function FavouriteScreen() {
     },
     [handleProductPress, handleAddToCart, handleRemoveFavourite, cardWidth],
   );
+
+  if (user?.isGuest || !user) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle}>Yêu thích</Text>
+            <Text style={styles.headerSubtitle}>0 sản phẩm đã lưu</Text>
+          </View>
+        </View>
+        <EmptyState
+          icon="heart-outline"
+          title="Yêu cầu đăng nhập"
+          subtitle="Bạn đang duyệt với tư cách Khách. Vui lòng đăng nhập để xem và lưu sản phẩm yêu thích."
+          actionLabel="Đăng nhập ngay"
+          onAction={() => router.push('/(auth)/login')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
