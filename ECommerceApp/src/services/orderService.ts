@@ -291,22 +291,27 @@ export const OrderService = {
         });
 
         // 4. Tạo thông báo cho user (ghi vào subcollection và root collection 'notifications')
-        const notifRef = doc(collection(db, 'users', input.userId, 'notifications'));
+        const notifDocId = `notif_${orderId}`;
+        const notifRef = doc(db, 'users', input.userId, 'notifications', notifDocId);
+        const notifTitle = `Đặt hàng #${orderId} thành công 🎉`;
+        const notifMessage = `Đơn hàng #${orderId} trị giá ${totalAmount.toLocaleString('vi-VN')} ₫ đã được tạo và đang chờ xác nhận.`;
         const notifData = {
-          id: notifRef.id,
+          id: notifDocId,
           type: 'order',
-          title: 'Đặt hàng thành công 🎉',
-          message: `Đơn hàng #${orderId} trị giá ${totalAmount.toLocaleString('vi-VN')} ₫ đã được tạo và đang chờ xác nhận.`,
+          title: notifTitle,
+          message: notifMessage,
+          orderId: orderId,
           data: { orderId },
           createdAt: now,
           read: false,
         };
         transaction.set(notifRef, notifData);
-        transaction.set(doc(db, 'notifications', notifRef.id), {
-          id: notifRef.id,
+        transaction.set(doc(db, 'notifications', notifDocId), {
+          id: notifDocId,
           userId: input.userId,
-          title: notifData.title,
-          message: notifData.message,
+          title: notifTitle,
+          message: notifMessage,
+          orderId: orderId,
           isRead: false,
           type: 'order',
           date: now,
@@ -404,22 +409,27 @@ export const OrderService = {
         transaction.set(orderRef, stripUndefined(updated));
 
         // Tạo thông báo huỷ đơn cho user (cả subcollection và root 'notifications')
-        const notifRef = doc(collection(db, 'users', order.userId, 'notifications'));
+        const notifDocId = `notif_cancel_${id}`;
+        const notifRef = doc(db, 'users', order.userId, 'notifications', notifDocId);
+        const cancelTitle = `Huỷ đơn hàng #${id} thành công`;
+        const cancelMessage = `Đơn hàng #${id} đã được huỷ thành công. Lý do: ${reason.trim()}`;
         const cancelNotif = {
-          id: notifRef.id,
+          id: notifDocId,
           type: 'order',
-          title: 'Đơn hàng đã được huỷ',
-          message: `Đơn hàng #${id} đã được huỷ thành công. Lý do: ${reason.trim()}`,
+          title: cancelTitle,
+          message: cancelMessage,
+          orderId: id,
           data: { orderId: id },
           createdAt: now,
           read: false,
         };
         transaction.set(notifRef, cancelNotif);
-        transaction.set(doc(db, 'notifications', notifRef.id), {
-          id: notifRef.id,
+        transaction.set(doc(db, 'notifications', notifDocId), {
+          id: notifDocId,
           userId: order.userId,
-          title: cancelNotif.title,
-          message: cancelNotif.message,
+          title: cancelTitle,
+          message: cancelMessage,
+          orderId: id,
           isRead: false,
           type: 'order',
           date: now,

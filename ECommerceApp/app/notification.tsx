@@ -12,7 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ScreenHeader, PrimaryButton, LoadingView, EmptyState } from '../src/components';
+import { ScreenHeader, PrimaryButton, SecondaryButton, LoadingView, EmptyState } from '../src/components';
 import { useAuth } from '../src/context/AuthContext';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { colors, radius, spacing } from '../src/constants/theme';
@@ -253,6 +253,7 @@ export default function NotificationScreen() {
           <View style={styles.modalCard}>
             {selectedNotification && (() => {
               const meta = getNotificationMeta(selectedNotification.type);
+              const targetOrderId = selectedNotification.orderId || selectedNotification.data?.orderId;
               return (
                 <>
                   <View
@@ -270,10 +271,27 @@ export default function NotificationScreen() {
                   <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
                   <Text style={styles.modalTime}>{formatDate(selectedNotification.createdAt)}</Text>
                   <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
-                  <PrimaryButton
-                    title="Đã hiểu"
-                    onPress={() => setSelectedNotification(null)}
-                  />
+                  {targetOrderId ? (
+                    <View style={{ width: '100%', gap: spacing.sm, marginTop: spacing.md }}>
+                      <PrimaryButton
+                        title="Xem chi tiết đơn hàng"
+                        onPress={() => {
+                          const oId = targetOrderId;
+                          setSelectedNotification(null);
+                          router.push(`/order/${oId}`);
+                        }}
+                      />
+                      <SecondaryButton
+                        title="Đóng"
+                        onPress={() => setSelectedNotification(null)}
+                      />
+                    </View>
+                  ) : (
+                    <PrimaryButton
+                      title="Đã hiểu"
+                      onPress={() => setSelectedNotification(null)}
+                    />
+                  )}
                 </>
               );
             })()}

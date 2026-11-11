@@ -18,3 +18,5 @@ export * from './ProductDescriptionView';
 export * from './ProductReviewsList';
 export * from './InvoiceModal';
 export * from './ReviewModal';
+export { default as FloatingChatButton } from './FloatingChatButton';
+export { default as ChatBotModal } from './ChatBotModal';

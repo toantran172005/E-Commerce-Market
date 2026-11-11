@@ -10,6 +10,7 @@ import {
   Image,
   Dimensions,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,6 +51,7 @@ function HomeProductCard({
   onPress,
 }: HomeProductCardProps) {
   const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
+  const imageUri = product.imageUrl || (product as any).image || product.images?.[0];
 
   return (
     <View style={[styles.card, width ? { width } : null]}>
@@ -60,7 +62,13 @@ function HomeProductCard({
         accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
       >
         <View style={styles.cardImageWrap}>
-          <Image source={{ uri: product.imageUrl }} style={styles.cardImage} resizeMode="contain" />
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="contain" />
+          ) : (
+            <View style={[styles.cardImage, styles.placeholderWrap]}>
+              <Ionicons name="image-outline" size={28} color={colors.gray} />
+            </View>
+          )}
 
           {discountPercent != null ? (
             <View style={styles.discountBadge}>
@@ -119,6 +127,7 @@ function HomeProductListRow({
   onPress,
 }: HomeProductListRowProps) {
   const discountPercent = calcDiscountPercent(product.price, product.originalPrice);
+  const imageUri = product.imageUrl || (product as any).image || product.images?.[0];
 
   return (
     <View style={styles.listCard}>
@@ -129,7 +138,13 @@ function HomeProductListRow({
         accessibilityLabel={`${product.name}, giá ${formatMoney(product.price)}`}
       >
         <View style={styles.listImageWrap}>
-          <Image source={{ uri: product.imageUrl }} style={styles.listImage} resizeMode="contain" />
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.listImage} resizeMode="contain" />
+          ) : (
+            <View style={[styles.listImage, styles.placeholderWrap]}>
+              <Ionicons name="image-outline" size={24} color={colors.gray} />
+            </View>
+          )}
 
           {discountPercent != null ? (
             <View style={styles.discountBadge}>
@@ -186,6 +201,7 @@ export default function HomeScreen() {
   const { products, loading, error, refresh } = useProductSearch();
 
   const [isGrid, setIsGrid] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [homeCategories, setHomeCategories] = useState<Category[]>([]);
 
@@ -252,6 +268,19 @@ export default function HomeScreen() {
 
   const handleRetry = useCallback(() => {
     void refresh();
+  }, [refresh]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const cats = await CatalogService.getCategories();
+      setHomeCategories(cats.slice(0, 7));
+      await refresh();
+    } catch {
+      // ignore
+    } finally {
+      setRefreshing(false);
+    }
   }, [refresh]);
 
   const renderProduct = useCallback(
@@ -462,6 +491,14 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         extraData={[favourites, isGrid, cart.totalItems, notifications.unreadCount]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       />
     </SafeAreaView>
   );
@@ -683,6 +720,11 @@ const styles = StyleSheet.create({
   cardImage: {
     width: '100%',
     height: '100%',
+  },
+  placeholderWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
   },
   discountBadge: {
     position: 'absolute',
