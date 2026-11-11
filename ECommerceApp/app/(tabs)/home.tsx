@@ -312,22 +312,48 @@ export default function HomeScreen() {
         </View>
         <View style={styles.headerActions}>
           <Pressable
-            onPress={() => router.push('/notification')}
+            onPress={() => {
+              if (!user || user.isGuest) {
+                Alert.alert(
+                  'Yêu cầu đăng nhập',
+                  'Vui lòng đăng nhập để xem thông báo.',
+                  [
+                    { text: 'Huỷ', style: 'cancel' },
+                    { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+                  ],
+                );
+                return;
+              }
+              router.push('/notification');
+            }}
             style={({ pressed }) => [styles.bellButton, pressed && styles.pressedIcon]}
             accessibilityRole="button"
             accessibilityLabel="Thông báo"
           >
             <Ionicons name="notifications-outline" size={22} color={colors.dark} />
-            {notifications.unreadCount > 0 ? <View style={styles.badgeDot} /> : null}
+            {!user?.isGuest && notifications.unreadCount > 0 ? <View style={styles.badgeDot} /> : null}
           </Pressable>
           <Pressable
-            onPress={() => router.push('/cart')}
+            onPress={() => {
+              if (!user || user.isGuest) {
+                Alert.alert(
+                  'Yêu cầu đăng nhập',
+                  'Vui lòng đăng nhập để xem giỏ hàng.',
+                  [
+                    { text: 'Huỷ', style: 'cancel' },
+                    { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+                  ],
+                );
+                return;
+              }
+              router.push('/cart');
+            }}
             style={({ pressed }) => [styles.cartButton, pressed && styles.pressedIcon]}
             accessibilityRole="button"
             accessibilityLabel="Giỏ hàng"
           >
             <Ionicons name="cart-outline" size={20} color={colors.white} />
-            {cart.totalItems > 0 ? (
+            {!user?.isGuest && cart.totalItems > 0 ? (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>
                   {cart.totalItems > 99 ? '99+' : cart.totalItems}

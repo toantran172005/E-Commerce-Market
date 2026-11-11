@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   ListRenderItem,
   Modal,
@@ -12,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ScreenHeader, PrimaryButton, LoadingView, EmptyState } from '../src/components';
+import { useAuth } from '../src/context/AuthContext';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { colors, radius, spacing } from '../src/constants/theme';
 import { AppNotification, NotificationType, IoniconName } from '../src/types';
@@ -67,6 +69,7 @@ function getNotificationMeta(type?: string): { icon: IoniconName; color: string;
 export default function NotificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -75,6 +78,8 @@ export default function NotificationScreen() {
     markAllAsRead,
     loadNotifications,
   } = useNotifications();
+
+  const isGuest = !user || user.isGuest === true;
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null);
@@ -86,6 +91,34 @@ export default function NotificationScreen() {
       router.replace('/(tabs)/home');
     }
   }, [router]);
+
+  useEffect(() => {
+    if (isGuest) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để xem thông báo.',
+        [
+          { text: 'Đăng nhập', onPress: () => router.replace('/(auth)/login') },
+        ],
+        { cancelable: false },
+      );
+    }
+  }, [isGuest, router]);
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <ScreenHeader title="Thông báo" subtitle="Yêu cầu đăng nhập" onBack={handleGoBack} />
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Yêu cầu đăng nhập"
+          subtitle="Vui lòng đăng nhập để xem các thông báo của bạn."
+          actionLabel="Đăng nhập ngay"
+          onAction={() => router.replace('/(auth)/login')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   const handleMarkAllAsRead = useCallback(() => {
     if (unreadCount === 0) return;
