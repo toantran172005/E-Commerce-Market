@@ -185,7 +185,7 @@ const getEnvKey = (): string => {
   } catch {
     // ignore
   }
-  return '';
+  return 'sk-8e6d65aff0ae461fa0385ea32d1fd7c5';
 };
 
 const DEEPSEEK_API_KEY = getEnvKey();
@@ -584,27 +584,51 @@ function filterProducts(
   products: ChatProduct[],
   params: ChatProductSearchParams
 ): ChatProduct[] {
-  const query = params.query ? normalizeVietnamese(params.query) : '';
+  const rawQuery = params.query ? normalizeVietnamese(params.query) : '';
   const categoryParam = params.category ? normalizeVietnamese(params.category) : '';
 
+  const queryTokens = rawQuery
+    ? rawQuery.split(/\s+/).filter((t) => t.length > 1)
+    : [];
+
   return products.filter((product) => {
-    if (query) {
-      const haystack = normalizeVietnamese(
-        `${product.name} ${product.category ?? ''} ${product.description ?? ''}`
-      );
-      if (!haystack.includes(query)) return false;
-    }
-
-    if (categoryParam) {
-      const cat = normalizeVietnamese(product.category ?? '');
-      if (!cat.includes(categoryParam)) return false;
-    }
-
+    // 1. Price check
     if (params.minPrice !== undefined && product.price < params.minPrice) {
       return false;
     }
-
     if (params.maxPrice !== undefined && product.price > params.maxPrice) {
+      return false;
+    }
+
+    const prodName = normalizeVietnamese(product.name);
+    const prodCategory = normalizeVietnamese(product.category ?? '');
+    const prodDesc = normalizeVietnamese(product.description ?? '');
+    const haystack = `${prodName} ${prodCategory} ${prodDesc}`;
+
+    // 2. Category check
+    if (categoryParam) {
+      const catMatch =
+        prodCategory.includes(categoryParam) ||
+        categoryParam.includes(prodCategory) ||
+        haystack.includes(categoryParam);
+      if (!catMatch) {
+        return false;
+      }
+    }
+
+    // 3. Query check
+    if (rawQuery) {
+      if (haystack.includes(rawQuery)) return true;
+
+      if (queryTokens.length > 0) {
+        const matchesAll = queryTokens.every((token) => haystack.includes(token));
+        if (matchesAll) return true;
+
+        const matchCount = queryTokens.filter((token) => haystack.includes(token)).length;
+        if (matchCount >= Math.ceil(queryTokens.length / 2)) {
+          return true;
+        }
+      }
       return false;
     }
 
@@ -807,8 +831,43 @@ function normalizeIntent(raw: Record<string, unknown>): ChatIntent {
   const reply =
     toStringValue(raw.reply ?? raw.message ?? raw.content) ||
     'Mình đã ghi nhận yêu cầu của bạn.';
-  const rawIntent = toStringValue(raw.intent) as ChatIntentName;
-  const intent = CHAT_INTENTS.includes(rawIntent) ? rawIntent : 'general';
+  const rawIntent = toStringValue(raw.intent).toLowerCase().trim();
+
+  let productIds: string[] | undefined;
+  if (Array.isArray(raw.productIds)) {
+    productIds = raw.productIds.map(toStringValue).filter(Boolean);
+  } else if (Array.isArray(raw.matchedProductIds)) {
+    productIds = raw.matchedProductIds.map(toStringValue).filter(Boolean);
+  }
+
+  let intent: ChatIntentName = 'general';
+  if (CHAT_INTENTS.includes(rawIntent as ChatIntentName)) {
+    intent = rawIntent as ChatIntentName;
+  } else if (
+    rawIntent.includes('search') ||
+    rawIntent.includes('find') ||
+    rawIntent.includes('filter') ||
+    rawIntent.includes('product') ||
+    (productIds && productIds.length > 0)
+  ) {
+    intent = 'search_products';
+  } else if (rawIntent.includes('add') && (rawIntent.includes('cart') || rawIntent.includes('gio'))) {
+    intent = 'add_to_cart';
+  } else if (rawIntent.includes('remove') && (rawIntent.includes('cart') || rawIntent.includes('gio'))) {
+    intent = 'remove_from_cart';
+  } else if (rawIntent.includes('remove') && (rawIntent.includes('fav') || rawIntent.includes('thich'))) {
+    intent = 'remove_from_favourites';
+  } else if (rawIntent.includes('fav') || rawIntent.includes('thich')) {
+    intent = 'add_to_favourites';
+  } else if (rawIntent.includes('order') || rawIntent.includes('buy') || rawIntent.includes('dat')) {
+    intent = 'place_order';
+  } else if (rawIntent.includes('logout') || rawIntent.includes('thoat') || rawIntent.includes('dang xuat')) {
+    intent = 'logout';
+  } else if (rawIntent.includes('policy') || rawIntent.includes('chinh sach')) {
+    intent = 'policy_question';
+  } else if (rawIntent.includes('greet') || rawIntent.includes('chao')) {
+    intent = 'greeting';
+  }
 
   const productQueryRecord = asRecord(raw.productQuery);
   const productQuery = productQueryRecord
@@ -820,13 +879,6 @@ function normalizeIntent(raw: Record<string, unknown>): ChatIntent {
         limit: toNumberValue(productQueryRecord.limit) ?? 5,
       }
     : undefined;
-
-  let productIds: string[] | undefined;
-  if (Array.isArray(raw.productIds)) {
-    productIds = raw.productIds.map(toStringValue).filter(Boolean);
-  } else if (Array.isArray(raw.matchedProductIds)) {
-    productIds = raw.matchedProductIds.map(toStringValue).filter(Boolean);
-  }
 
   return {
     reply,
@@ -992,19 +1044,45 @@ async function callDeepSeek(
   return normalizeIntent(parseJsonObject(content));
 }
 
-function extractProductQuery(message: string): string {
-  return message
+function extractCleanQuery(message: string): { query: string; category?: string } {
+  const norm = normalizeVietnamese(message);
+
+  let category: string | undefined;
+  if (/(tai nghe|headphone|earphone|buds|airpods|am thanh)/i.test(norm)) {
+    category = 'Âm thanh';
+  } else if (/(laptop|macbook|may tinh xach tay)/i.test(norm)) {
+    category = 'Laptop & Máy tính';
+  } else if (/(dien thoai|smartphone|iphone|galaxy s|xiaomi 14|zenfone)/i.test(norm)) {
+    category = 'Điện thoại';
+  } else if (/(may tinh bang|tablet|ipad|tab s|pad 6)/i.test(norm)) {
+    category = 'Máy tính bảng';
+  } else if (/(dong ho|smartwatch|vong deo tay|smart band|watch)/i.test(norm)) {
+    category = 'Đồng hồ thông minh';
+  } else if (/(chuot|ban phim|keyboard|mouse|phu kien|gear)/i.test(norm)) {
+    category = 'Phụ kiện & Gear';
+  }
+
+  const cleaned = norm
     .replace(
-      /(thêm|cho|vào|giỏ|hàng|yêu thích|favorite|favourite|mua|đặt|đơn|tôi|muốn|giúp|mình|với|nhé|sản phẩm|tìm|kiếm|lọc|giá|bao nhiêu|ạ|nha|có thể|hãy|vui lòng)/gi,
+      /\b(toi|minh|ban|shop|ad|em|anh|chi|muon|can|xem|tim|kiem|loc|hoi|cho|gui|cac|vai|nhung|mot so|mau|loai|san pham|hang|co|khong|chua|nao|gi|bao nhieu|nhe|nha|ạ|a|ha|giup|voi|hay|vui long|o day|cua hang|hien tai|dang co)\b/gi,
       ' '
     )
     .replace(/\s+/g, ' ')
     .trim();
+
+  return {
+    query: cleaned || (category ? category : norm),
+    category,
+  };
+}
+
+function extractProductQuery(message: string): string {
+  return extractCleanQuery(message).query;
 }
 
 function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
   const normalized = normalizeVietnamese(message);
-  const query = extractProductQuery(message);
+  const extracted = extractCleanQuery(message);
   let intent: ChatIntentName = 'general';
   let reply = '';
 
@@ -1032,12 +1110,13 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
     intent = 'add_to_cart';
     reply = 'Mình sẽ kiểm tra và thêm sản phẩm vào giỏ hàng cho bạn.';
   } else if (
-    /(tim|tim kiem|loc|san pham|laptop|dien thoai|tai nghe|dong ho|gia|ban chay)/.test(
+    /(tim|tim kiem|loc|san pham|laptop|dien thoai|tai nghe|dong ho|gia|ban chay|xem|mau|co .* khong|airpods|ipad|macbook)/.test(
       normalized
-    )
+    ) ||
+    extracted.category
   ) {
     intent = 'search_products';
-    reply = 'Mình sẽ tìm sản phẩm phù hợp theo yêu cầu của bạn.';
+    reply = 'Dưới đây là các sản phẩm phù hợp tại cửa hàng cho bạn:';
   } else if (
     /(chinh sach|doi tra|giao hang|bao hanh|van chuyen|hoan tien)/.test(normalized)
   ) {
@@ -1070,8 +1149,12 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
     productId: matchedProductId,
     productName: matchedProductName,
     productQuery:
-      intent === 'search_products' && query
-        ? { query, limit: 5 }
+      intent === 'search_products'
+        ? {
+            query: extracted.query,
+            category: extracted.category,
+            limit: 5,
+          }
         : undefined,
     quantity: 1,
   };
@@ -1195,7 +1278,31 @@ async function handleSearchProducts(
     query: intent.productName,
     limit: 5,
   };
-  const products = await runtime.catalog.searchProducts(params);
+  let products = await runtime.catalog.searchProducts(params);
+
+  if (products.length === 0) {
+    if (params.category) {
+      const byCat = await runtime.catalog.searchProducts({
+        category: params.category,
+        minPrice: params.minPrice,
+        maxPrice: params.maxPrice,
+        limit: params.limit ?? 5,
+      });
+      if (byCat.length > 0) {
+        products = byCat;
+      }
+    } else if (params.query) {
+      const byQuery = await runtime.catalog.searchProducts({
+        query: params.query,
+        minPrice: params.minPrice,
+        maxPrice: params.maxPrice,
+        limit: params.limit ?? 5,
+      });
+      if (byQuery.length > 0) {
+        products = byQuery;
+      }
+    }
+  }
 
   if (products.length === 0) {
     const isAffirmativeReply =
