@@ -27,6 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useFavourites } from '../context/FavouritesContext';
 import { useAddresses } from '../context/AddressesContext';
+import { useOrders } from '../context/OrdersContext';
 import { CatalogService } from '../services/catalogService';
 import { OrderService } from '../services/orderService';
 import {
@@ -124,6 +125,7 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
   const cart = useCart();
   const favourites = useFavourites();
   const addresses = useAddresses();
+  const orders = useOrders();
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
@@ -233,10 +235,24 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
         return;
       }
 
+      if (action.type === 'view_orders') {
+        onClose();
+        router.push('/orders');
+        return;
+      }
+
       if (action.type === 'confirm_order') {
         setIsLoading(true);
         try {
           const res = await createOrderFromDraft(action.orderDraft, runtime);
+          // Clear cart immediately
+          cart.clearCart();
+          // Reload orders context so user profile and orders screen update immediately
+          try {
+            await orders.loadOrders();
+          } catch {
+            // ignore
+          }
           setMessages((prev) => [...prev, toUiMessage(res)]);
         } catch (error) {
           const msg =
@@ -276,7 +292,7 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
         scrollToBottom();
       }
     },
-    [onClose, router, runtime, sendMessage, scrollToBottom]
+    [cart, onClose, orders, router, runtime, sendMessage, scrollToBottom]
   );
 
   const handleProductAddToCart = useCallback(

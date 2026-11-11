@@ -382,12 +382,18 @@ test('UC018: Gửi đánh giá sản phẩm thành công với điểm số 1-5 
     createdAt: new Date().toISOString(),
   });
 
-  assert.ok(review.id);
-  assert.equal(review.rating, 5);
-  assert.equal(review.verifiedPurchase, true);
+  try {
+    assert.ok(review.id);
+    assert.equal(review.rating, 5);
+    assert.equal(review.verifiedPurchase, true);
 
-  const reviews = await CatalogService.getProductReviews('p-01');
-  assert.ok(reviews.some((r) => r.id === review.id));
+    const reviews = await CatalogService.getProductReviews('p-01');
+    assert.ok(reviews.some((r) => r.id === review.id));
+  } finally {
+    if (review?.id) {
+      await CatalogService.deleteProductReview('p-01', review.id);
+    }
+  }
 });
 
 /* ========================================================================== */

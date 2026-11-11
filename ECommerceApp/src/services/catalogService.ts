@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -117,7 +118,14 @@ export const CatalogService = {
     let allProducts: Product[] = [];
     try {
       const snap = await getDocs(collection(db, 'products'));
-      allProducts = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }));
+      allProducts = snap.docs.map((d) => {
+        const raw = d.data() as any;
+        return {
+          id: d.id,
+          ...raw,
+          imageUrl: raw.imageUrl || raw.image || raw.images?.[0] || '',
+        };
+      });
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể tải sản phẩm từ Firestore.');
     }
@@ -196,7 +204,12 @@ export const CatalogService = {
     try {
       const snap = await getDoc(doc(db, 'products', id));
       if (snap.exists()) {
-        return { id: snap.id, ...(snap.data() as Omit<Product, 'id'>) };
+        const raw = snap.data() as any;
+        return {
+          id: snap.id,
+          ...raw,
+          imageUrl: raw.imageUrl || raw.image || raw.images?.[0] || '',
+        };
       }
       apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
     } catch (err: unknown) {
@@ -233,6 +246,15 @@ export const CatalogService = {
       return newReview;
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể gửi đánh giá sản phẩm.');
+    }
+  },
+
+  /** Xoá một đánh giá khỏi sản phẩm */
+  async deleteProductReview(productId: string, reviewId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'products', productId, 'reviews', reviewId));
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể xoá đánh giá sản phẩm.');
     }
   },
 
