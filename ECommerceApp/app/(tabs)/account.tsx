@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../src/constants/theme';
 import { ListItemRow } from '../../src/components/ListItemRow';
 import { LoadingView } from '../../src/components/LoadingView';
@@ -228,30 +228,15 @@ export default function AccountScreen() {
     setLoggingOut(true);
     try {
       await logout();
-      router.replace('/(tabs)/home');
-    } finally {
+      router.replace('/(auth)/login');
+    } catch {
       loggingOutRef.current = false;
       setLoggingOut(false);
+      Alert.alert('Lỗi', 'Không thể đăng xuất. Vui lòng thử lại.');
     }
   }, [logout, router]);
 
   const isGuestUser = !authLoading && (user?.isGuest || !user);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (isGuestUser) {
-        Alert.alert(
-          'Yêu cầu đăng nhập',
-          'Vui lòng đăng nhập để truy cập thông tin tài khoản và đơn hàng.',
-          [
-            { text: 'Đăng nhập ngay', onPress: () => router.push('/(auth)/login') },
-            { text: 'Về trang chủ', style: 'cancel', onPress: () => router.replace('/(tabs)/home') },
-          ],
-          { cancelable: false },
-        );
-      }
-    }, [isGuestUser, router]),
-  );
 
   const processingCount = useMemo(
     () => (orders ?? []).filter((order) => order.status === 'processing').length,
