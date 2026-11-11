@@ -114,7 +114,16 @@ export default function CheckoutScreen() {
     if (checkout.placing) return;
 
     if (!selectedAddress) {
-      setSubmitError('Vui lòng chọn địa chỉ giao hàng.');
+      const msg = 'Vui lòng chọn hoặc thêm địa chỉ giao hàng trước khi đặt hàng.';
+      setSubmitError(msg);
+      Alert.alert(
+        'Chưa có địa chỉ giao hàng',
+        msg,
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Thêm địa chỉ', onPress: handleChangeAddress },
+        ],
+      );
       return;
     }
 
@@ -202,15 +211,17 @@ export default function CheckoutScreen() {
               <Text style={styles.cardTitle}>Địa chỉ giao hàng</Text>
             </View>
 
-            <Pressable
-              onPress={handleChangeAddress}
-              style={({ pressed }) => [styles.changeButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Thay đổi địa chỉ giao hàng"
-            >
-              <Ionicons name="pencil" size={13} color={colors.primary} />
-              <Text style={styles.changeText}>Thay đổi</Text>
-            </Pressable>
+            {selectedAddress ? (
+              <Pressable
+                onPress={handleChangeAddress}
+                style={({ pressed }) => [styles.changeButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Thay đổi địa chỉ giao hàng"
+              >
+                <Ionicons name="pencil" size={13} color={colors.primary} />
+                <Text style={styles.changeText}>Thay đổi</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {selectedAddress ? (

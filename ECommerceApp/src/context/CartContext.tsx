@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -12,6 +13,8 @@ import { VoucherService } from '../services/voucherService';
 import { CatalogService } from '../services/catalogService';
 import { computeCartTotals, computeSubtotal, CartTotals } from '../utils/pricing';
 import { cartItemKey, toCartItem } from '../utils/cart';
+import { useAuth } from './AuthContext';
+import { CartService } from '../services/cartService';
 
 export const DEFAULT_SHIPPING_METHOD: ShippingMethod = {
   id: 'ship_standard',
@@ -49,10 +52,12 @@ export function CartProvider({
   children,
   resetKey = 0,
 }: { children: ReactNode; resetKey?: number }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([DEFAULT_SHIPPING_METHOD]);
   const [selectedShippingId, setSelectedShippingId] = useState<string>(DEFAULT_SHIPPING_METHOD.id);
+  const isLoadedRef = useRef(false);
 
   // Load shipping methods from CatalogService
   useEffect(() => {
@@ -65,11 +70,40 @@ export function CartProvider({
     return () => { isMounted = false; };
   }, []);
 
-  // Khi logout, AuthProvider bump resetKey -> reset giỏ.
+  // Tải giỏ hàng từ Firestore khi user đăng nhập
   useEffect(() => {
-    setItems([]);
-    setVoucher(null);
-  }, [resetKey]);
+    let active = true;
+    isLoadedRef.current = false;
+    if (user?.uid) {
+      CartService.listCartItems(user.uid)
+        .then((cartList) => {
+          if (active) {
+            setItems(cartList);
+            isLoadedRef.current = true;
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setItems([]);
+            isLoadedRef.current = true;
+          }
+        });
+    } else {
+      setItems([]);
+      setVoucher(null);
+      isLoadedRef.current = true;
+    }
+    return () => {
+      active = false;
+    };
+  }, [user?.uid, resetKey]);
+
+  // Tự động lưu giỏ hàng lên Firestore khi items thay đổi
+  useEffect(() => {
+    if (isLoadedRef.current && user?.uid) {
+      void CartService.syncCart(user.uid, items);
+    }
+  }, [items, user?.uid]);
 
   const selectedShipping = useMemo(() => {
     return shippingMethods.find((s) => s.id === selectedShippingId) ?? shippingMethods[0] ?? DEFAULT_SHIPPING_METHOD;
@@ -101,7 +135,10 @@ export function CartProvider({
 
   const removeItem = useCallback((itemId: string) => {
     setItems((prev) => prev.filter((i) => i.id !== itemId));
-  }, []);
+    if (user?.uid) {
+      void CartService.removeCartItem(user.uid, itemId);
+    }
+  }, [user?.uid]);
 
   const updateQuantity = useCallback((itemId: string, delta: number) => {
     setItems((prev) =>
@@ -150,12 +187,18 @@ export function CartProvider({
   const clearCart = useCallback(() => {
     setItems([]);
     setVoucher(null);
-  }, []);
+    if (user?.uid) {
+      void CartService.clearCart(user.uid);
+    }
+  }, [user?.uid]);
 
   const reset = useCallback(() => {
     setItems([]);
     setVoucher(null);
-  }, []);
+    if (user?.uid) {
+      void CartService.clearCart(user.uid);
+    }
+  }, [user?.uid]);
 
   const totalItems = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity, 0),

@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 
 import { colors, radius, spacing } from '../src/constants/theme';
 import { usePaymentMethods } from '../src/context/PaymentMethodsContext';
+import { useCheckout } from '../src/context/CheckoutContext';
 import {
   Chip,
   ConfirmSheet,
@@ -135,6 +136,7 @@ function getCardNumber(method: PaymentMethod | null): string {
 
 export default function PaymentMethodScreen() {
   const router = useRouter();
+  const checkout = useCheckout();
   const {
     methods,
     defaultMethod,
@@ -254,11 +256,17 @@ export default function PaymentMethodScreen() {
     setConfirming(true);
     try {
       await setDefault(selectedMethod.id);
+      if (checkout?.setPaymentMethodId) {
+        checkout.setPaymentMethodId(selectedMethod.id);
+      }
+      showToast('Đã chọn phương thức thanh toán');
+      router.back();
+    } catch {
       router.back();
     } finally {
       setConfirming(false);
     }
-  }, [selectedMethod, setDefault, router, showToast]);
+  }, [selectedMethod, setDefault, checkout, router, showToast]);
 
   const selectedIsDefault = selectedMethod && defaultMethod?.id === selectedMethod.id;
   const selectedBrandMeta = getBrandMeta(selectedMethod);
@@ -389,17 +397,37 @@ export default function PaymentMethodScreen() {
                   </View>
                 </Pressable>
 
-                {!isCod ? (
-                  <Pressable
-                    onPress={() => handleDeleteMethod(method)}
-                    style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Xoá ${method.name}`}
-                  >
-                    <Ionicons name="trash-outline" size={16} color={colors.primary} />
-                  </Pressable>
-                ) : null}
+                <View style={styles.optionActions}>
+                  {method.isDefault ? (
+                    <View style={styles.defaultPill}>
+                      <Text style={styles.defaultPillText}>Mặc định</Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={async () => {
+                        await setDefault(method.id);
+                        showToast(`Đã đặt ${method.name} làm mặc định`);
+                      }}
+                      style={({ pressed }) => [styles.setDefaultBtn, pressed && styles.pressed]}
+                      hitSlop={6}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.setDefaultBtnText}>Đặt mặc định</Text>
+                    </Pressable>
+                  )}
+
+                  {!isCod ? (
+                    <Pressable
+                      onPress={() => handleDeleteMethod(method)}
+                      style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Xoá ${method.name}`}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.primary} />
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             );
           })}
@@ -889,5 +917,34 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  optionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  defaultPill: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  defaultPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  setDefaultBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  setDefaultBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
   },
 });

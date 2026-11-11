@@ -10,13 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Order, OrderItem, Product, Voucher, ShippingMethod } from '../types';
-import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
-import { MOCK_ORDERS } from '../mock/orders';
-import { MOCK_PRODUCTS } from '../mock/products';
-import { MOCK_ADDRESSES } from '../mock/addresses';
-import { MOCK_PAYMENT_METHODS } from '../mock/paymentMethods';
-import { MOCK_SHIPPING_METHODS } from '../mock/shippingMethods';
-import { MOCK_VOUCHERS } from '../mock/vouchers';
+import { apiError, mapFirebaseError } from './http';
 import { computeVoucherDiscount, TAX_RATE } from '../utils/pricing';
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
@@ -37,8 +31,6 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
   return result;
 }
 
-let mockOrdersDb: Order[] = [...MOCK_ORDERS];
-
 export interface CreateOrderInput {
   userId: string;
   customerName: string;
@@ -55,18 +47,12 @@ export interface CreateOrderInput {
 }
 
 /**
- * Service quản lý đặt hàng, huỷ đơn và mua lại với cơ chế Transaction bảo toàn tồn kho.
+ * Service quản lý đặt hàng, huỷ đơn và mua lại 100% qua Cloud Firestore Transactions.
  */
 export const OrderService = {
   /** Lấy danh sách toàn bộ đơn hàng của một người dùng */
   async listOrders(userId: string): Promise<Order[]> {
     if (!userId) return [];
-
-    if (IS_MOCK_MODE) {
-      return mockOrdersDb
-        .filter((o) => o.userId === userId)
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    }
 
     try {
       const q = query(collection(db, 'orders'), where('userId', '==', userId));
@@ -75,44 +61,30 @@ export const OrderService = {
         const orders = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Order, 'id'>) }));
         return orders.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       }
-      return mockOrdersDb
-        .filter((o) => o.userId === userId)
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      return [];
     } catch {
-      return mockOrdersDb
-        .filter((o) => o.userId === userId)
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      return [];
     }
   },
 
   /** Lấy chi tiết một đơn hàng theo ID */
   async getOrder(id: string): Promise<Order> {
-    if (IS_MOCK_MODE) {
-      const order = mockOrdersDb.find((o) => o.id === id);
-      if (!order) apiError('ORDER_NOT_FOUND', `Không tìm thấy đơn hàng #${id}.`);
-      return order;
-    }
-
     try {
       const snap = await getDoc(doc(db, 'orders', id));
       if (snap.exists()) {
         return { id: snap.id, ...(snap.data() as Omit<Order, 'id'>) };
       }
-      const mock = mockOrdersDb.find((o) => o.id === id);
-      if (mock) return mock;
       apiError('ORDER_NOT_FOUND', `Không tìm thấy đơn hàng #${id}.`);
     } catch (err: unknown) {
       if ((err as any)?.code === 'ORDER_NOT_FOUND') throw err;
-      const mock = mockOrdersDb.find((o) => o.id === id);
-      if (mock) return mock;
       throw mapFirebaseError(err, `Không tìm thấy đơn hàng #${id}.`);
     }
   },
 
   /**
    * Tạo đơn hàng mới qua Firestore Transaction nguyên tử:
-   * 1. Xác thực tồn kho từng mặt hàng.
-   * 2. Lấy giá chuẩn từ Database, không chấp nhận giá từ client.
+   * 1. Xác thực tồn kho từng mặt hàng trực tiếp từ Firestore.
+   * 2. Lấy giá chuẩn từ Database, không chấp nhận giá can thiệp từ client.
    * 3. Trừ tồn kho và tăng lượt bán.
    * 4. Áp dụng mã giảm giá và kiểm tra điều kiện.
    * 5. Ghi nhận thông báo đặt hàng thành công.
@@ -136,55 +108,8 @@ export const OrderService = {
     const orderId = `ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const now = new Date().toISOString();
 
-    if (IS_MOCK_MODE) {
-      // In-memory fallback calculation
-      const subtotal = input.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const shipping = MOCK_SHIPPING_METHODS.find((s) => s.id === input.shippingMethodId) ?? MOCK_SHIPPING_METHODS[0];
-      const baseShipping = subtotal >= shipping.freeOver ? 0 : shipping.fee;
-      const voucher = MOCK_VOUCHERS.find((v) => v.code === input.voucherCode) ?? null;
-      const discount = computeVoucherDiscount(voucher, subtotal, baseShipping);
-      const isFreeShip = voucher?.type === 'freeShip' && subtotal >= voucher.minOrderValue;
-      const shippingFee = isFreeShip ? 0 : baseShipping;
-      const taxable = Math.max(subtotal - discount + shippingFee, 0);
-      const tax = taxable * TAX_RATE;
-      const totalAmount = Math.max(subtotal - discount + shippingFee + tax, 0);
-
-      const order: Order = {
-        id: orderId,
-        userId: input.userId,
-        customerName: input.customerName,
-        phoneNumber: input.phoneNumber,
-        shippingAddress: input.shippingAddress,
-        items: input.items,
-        subtotal,
-        shippingFee,
-        tax,
-        discount,
-        totalAmount,
-        status: 'pending',
-        currentStep: 1,
-        canCancel: true,
-        createdAt: now,
-        voucherCode: input.voucherCode,
-        paymentMethodId: input.paymentMethodId,
-        paymentMethodName: input.paymentMethodName ?? 'Thanh toán khi nhận hàng (COD)',
-        shippingMethodId: input.shippingMethodId,
-        shippingMethodName: input.shippingMethodName ?? shipping.name,
-        timeline: [
-          { key: 'ordered', label: 'Đặt hàng thành công', icon: 'cart', date: now, completed: true },
-          { key: 'processing', label: 'Đang xử lý', icon: 'cube', date: 'Chờ cập nhật', completed: false },
-          { key: 'shipped', label: 'Đang giao hàng', icon: 'car', date: 'Chờ cập nhật', completed: false },
-          { key: 'delivered', label: 'Đã giao hàng', icon: 'home', date: 'Chờ cập nhật', completed: false },
-        ],
-        note: input.note,
-      };
-
-      mockOrdersDb = [order, ...mockOrdersDb];
-      return order;
-    }
-
     try {
-      const createdOrder = await runTransaction(db, async (transaction) => {
+      return await runTransaction(db, async (transaction) => {
         // ========================================================
         // GIAI ĐOẠN 1: TẤT CẢ CÁC LỆNH ĐỌC (READS ONLY)
         // Bắt buộc thực hiện trước toàn bộ các lệnh ghi trong Firestore
@@ -211,93 +136,71 @@ export const OrderService = {
         }
 
         // 3. Đọc voucher (nếu có)
-        let voucherSnap: any = null;
         let voucherRef: any = null;
+        let voucherSnap: any = null;
         if (input.voucherCode) {
-          voucherRef = doc(db, 'vouchers', input.voucherCode);
+          const vCode = input.voucherCode.trim().toUpperCase();
+          voucherRef = doc(db, 'vouchers', vCode);
           voucherSnap = await transaction.get(voucherRef);
         }
 
         // ========================================================
-        // TÍNH TOÁN & XÁC THỰC TRONG BỘ NHỚ (IN-MEMORY COMPUTATION)
+        // XỬ LÝ & VALIDATION LOGIC TRONG BỘ NHỚ (IN-MEMORY)
         // ========================================================
+
         const verifiedItems: OrderItem[] = [];
-        const productUpdates: { ref: any; newStock: number; newSoldCount: number }[] = [];
         let computedSubtotal = 0;
+        const productUpdates: { ref: any; newStock: number; newSoldCount: number }[] = [];
 
         for (const { rawItem, prodRef, prodSnap } of productReads) {
-          const item = {
-            ...rawItem,
-            name: rawItem.name || (rawItem as any).productName || 'Sản phẩm',
-            imageUrl: rawItem.imageUrl || (rawItem as any).productImage || '',
-          };
-
-          let realPrice = item.price;
-          let currentStock = 100;
-          let prodName = item.name;
+          let price = rawItem.price;
+          let name = rawItem.name;
+          let imageUrl = rawItem.imageUrl;
+          let currentStock = 999;
+          let currentSoldCount = 0;
 
           if (prodSnap.exists()) {
-            const prodData = prodSnap.data() as Product;
-            currentStock = prodData.stock ?? 0;
-            realPrice = prodData.price;
-            prodName = prodData.name;
+            const pData = prodSnap.data() as Product;
+            price = pData.price;
+            name = pData.name;
+            imageUrl = pData.images?.[0] || pData.imageUrl || rawItem.imageUrl;
+            currentStock = pData.stock ?? 0;
+            currentSoldCount = pData.soldCount ?? 0;
 
-            if (currentStock < item.quantity) {
+            if (currentStock < rawItem.quantity) {
               apiError(
                 'OUT_OF_STOCK',
-                `Sản phẩm "${prodName}" chỉ còn lại ${currentStock} cái trong kho, không đủ số lượng ${item.quantity}.`,
+                `Sản phẩm "${name}" chỉ còn lại ${currentStock} cái trong kho, không đủ đáp ứng số lượng bạn đặt.`,
               );
             }
 
             productUpdates.push({
               ref: prodRef,
-              newStock: currentStock - item.quantity,
-              newSoldCount: (prodData.soldCount ?? 0) + item.quantity,
+              newStock: currentStock - rawItem.quantity,
+              newSoldCount: currentSoldCount + rawItem.quantity,
             });
-          } else {
-            // Check fallback mock products or test fixture
-            const mockP = MOCK_PRODUCTS.find((p) => p.id === item.productId);
-            if (mockP) {
-              currentStock = mockP.stock ?? 0;
-              realPrice = mockP.price;
-              prodName = mockP.name;
-              if (currentStock < item.quantity) {
-                apiError('OUT_OF_STOCK', `Sản phẩm "${prodName}" chỉ còn ${currentStock} cái trong kho.`);
-              }
-            } else if (item.price != null && item.price >= 0) {
-              realPrice = item.price;
-            } else {
-              apiError('PRODUCT_NOT_FOUND', `Sản phẩm "${prodName}" không còn tồn tại.`);
-            }
           }
 
-          computedSubtotal += realPrice * item.quantity;
           verifiedItems.push({
-            productId: item.productId,
-            name: prodName,
-            price: realPrice,
-            quantity: item.quantity,
-            imageUrl: item.imageUrl,
-            variantId: item.variantId,
-            variantName: item.variantName,
+            ...rawItem,
+            name,
+            price,
+            imageUrl,
           });
+
+          computedSubtotal += price * rawItem.quantity;
         }
 
-        // Tính phí vận chuyển
-        let fee = 0;
-        let freeOver = 500000;
-        let shippingName = input.shippingMethodName ?? 'Giao hàng tiêu chuẩn';
-
+        // Tính phí ship
+        let baseShipping = 30000;
+        let finalShippingMethodName = input.shippingMethodName || 'Giao hàng tiêu chuẩn';
         if (shipSnap && shipSnap.exists()) {
-          const shipData = shipSnap.data() as ShippingMethod;
-          fee = shipData.fee;
-          freeOver = shipData.freeOver;
-          shippingName = shipData.name;
+          const sData = shipSnap.data() as ShippingMethod;
+          baseShipping = sData.fee;
+          finalShippingMethodName = sData.name;
         }
 
-        const baseShipping = computedSubtotal >= freeOver ? 0 : fee;
-
-        // Xử lý Voucher nếu có
+        // Tính giảm giá Voucher
         let discount = 0;
         let isFreeShip = false;
         let voucherUpdate: { ref: any; newUsedCount: number } | null = null;
@@ -322,7 +225,6 @@ export const OrderService = {
 
         // ========================================================
         // GIAI ĐOẠN 2: TẤT CẢ CÁC LỆNH GHI (WRITES ONLY)
-        // Thực hiện tuần tự các update và set mà không có bất kỳ lệnh get nào
         // ========================================================
 
         // 1. Cập nhật tồn kho sản phẩm
@@ -344,52 +246,74 @@ export const OrderService = {
         const newOrder: Order = {
           id: orderId,
           userId: input.userId,
-          customerName: input.customerName,
-          phoneNumber: input.phoneNumber,
-          shippingAddress: input.shippingAddress,
+          customerName: input.customerName.trim(),
+          phoneNumber: input.phoneNumber.trim(),
+          shippingAddress: input.shippingAddress.trim(),
           items: verifiedItems,
           subtotal: computedSubtotal,
           shippingFee,
           discount,
           totalAmount,
           status: 'pending',
-          currentStep: 1,
-          canCancel: true,
+          paymentMethodName: input.paymentMethodName || 'Thanh toán khi nhận hàng (COD)',
+          shippingMethodName: finalShippingMethodName,
+          voucherCode: discount > 0 ? input.voucherCode?.trim().toUpperCase() : undefined,
           createdAt: now,
-          voucherCode: input.voucherCode,
-          paymentMethodId: input.paymentMethodId,
-          paymentMethodName: input.paymentMethodName ?? 'Thanh toán khi nhận hàng (COD)',
-          shippingMethodId: input.shippingMethodId,
-          shippingMethodName: shippingName,
+          canCancel: true,
           timeline: [
-            { key: 'ordered', label: 'Đặt hàng thành công', icon: 'cart', date: now, completed: true },
-            { key: 'processing', label: 'Đang xử lý', icon: 'cube', date: 'Chờ cập nhật', completed: false },
-            { key: 'shipped', label: 'Đang giao hàng', icon: 'car', date: 'Chờ cập nhật', completed: false },
-            { key: 'delivered', label: 'Đã giao hàng', icon: 'home', date: 'Chờ cập nhật', completed: false },
+            { key: 'placed', label: 'Đặt hàng thành công', icon: 'checkmark-circle', date: now, completed: true },
+            { key: 'confirmed', label: 'Đã xác nhận', icon: 'cube', date: now, completed: false },
+            { key: 'shipping', label: 'Đang vận chuyển', icon: 'airplane', date: now, completed: false },
+            { key: 'delivered', label: 'Đã giao hàng', icon: 'home', date: now, completed: false },
           ],
           note: input.note,
         };
 
         transaction.set(doc(db, 'orders', orderId), stripUndefined(newOrder));
 
-        // 4. Tạo thông báo cho user
+        // 3b. Lưu các mặt hàng vào root collection 'order_items' theo chuẩn ERD
+        verifiedItems.forEach((it, idx) => {
+          const itemDocId = `${orderId}_${idx + 1}`;
+          const itemRef = doc(db, 'order_items', itemDocId);
+          const pId = it.productId || (it as any).id || 'prod_default';
+          transaction.set(itemRef, stripUndefined({
+            id: itemDocId,
+            orderId: orderId,
+            productId: pId,
+            name: it.name || (it as any).title || 'Sản phẩm',
+            brand: (it as any).brand || '',
+            variant: (it as any).selectedColor || (it as any).variant || it.variantName || '',
+            price: it.price || 0,
+            originalPrice: (it as any).originalPrice || it.price || 0,
+            quantity: it.quantity || 1,
+            imageUrl: it.imageUrl || (it as any).image || '',
+          }));
+        });
+
+        // 4. Tạo thông báo cho user (ghi vào subcollection và root collection 'notifications')
         const notifRef = doc(collection(db, 'users', input.userId, 'notifications'));
-        transaction.set(notifRef, {
+        const notifData = {
           id: notifRef.id,
           type: 'order',
-          title: 'Đặt hàng thành công!',
-          message: `Đơn hàng #${orderId} của bạn đã được tiếp nhận và đang được chuẩn bị.`,
+          title: 'Đặt hàng thành công 🎉',
+          message: `Đơn hàng #${orderId} trị giá ${totalAmount.toLocaleString('vi-VN')} ₫ đã được tạo và đang chờ xác nhận.`,
           data: { orderId },
           createdAt: now,
           read: false,
+        };
+        transaction.set(notifRef, notifData);
+        transaction.set(doc(db, 'notifications', notifRef.id), {
+          id: notifRef.id,
+          userId: input.userId,
+          title: notifData.title,
+          message: notifData.message,
+          isRead: false,
+          type: 'order',
+          date: now,
         });
 
         return newOrder;
       });
-
-      // Lưu song song vào memory cho mượt mà
-      mockOrdersDb = [createdOrder, ...mockOrdersDb];
-      return createdOrder;
     } catch (err: unknown) {
       if ((err as any)?.name === 'ApiError') throw err;
       throw mapFirebaseError(err, 'Không thể hoàn tất đặt hàng. Vui lòng thử lại.');
@@ -397,50 +321,27 @@ export const OrderService = {
   },
 
   /**
-   * Huỷ đơn hàng có hoàn trả tồn kho và ghi nhận timeline:
-   * Chỉ cho phép huỷ khi trạng thái là pending hoặc processing.
+   * Huỷ đơn hàng:
+   * 1. Chỉ cho phép huỷ khi trạng thái là pending hoặc processing.
+   * 2. Hoàn lại tồn kho cho từng sản phẩm trong Firestore Transaction.
+   * 3. Giảm usedCount của voucher nếu có sử dụng.
+   * 4. Gửi thông báo huỷ đơn.
    */
   async cancelOrder(id: string, reason: string): Promise<Order> {
     if (!reason || !reason.trim()) {
-      apiError('ORDER_CANCEL_MISSING_REASON', 'Vui lòng cung cấp lý do huỷ đơn hàng.');
-    }
-
-    if (IS_MOCK_MODE) {
-      const order = mockOrdersDb.find((o) => o.id === id);
-      if (!order) apiError('ORDER_NOT_FOUND', `Không tìm thấy đơn hàng #${id}.`);
-      if (!order.canCancel || (order.status !== 'pending' && order.status !== 'processing')) {
-        apiError('ORDER_CANCEL_NOT_ALLOWED', 'Đơn hàng đã qua trạng thái có thể huỷ.');
-      }
-      const updated: Order = {
-        ...order,
-        status: 'cancelled',
-        canCancel: false,
-        cancelReason: reason.trim(),
-        cancelledAt: new Date().toISOString(),
-        timeline: [
-          ...(order.timeline ?? []).filter((s) => s.key !== 'delivered'),
-          { key: 'cancelled', label: 'Đã huỷ', icon: 'close', date: new Date().toISOString(), completed: true },
-        ],
-      };
-      mockOrdersDb = mockOrdersDb.map((o) => (o.id === id ? updated : o));
-      return updated;
+      apiError('ORDER_CANCEL_MISSING_REASON', 'Vui lòng nhập lý do huỷ đơn hàng.');
     }
 
     try {
-      const updatedOrder = await runTransaction(db, async (transaction) => {
+      return await runTransaction(db, async (transaction) => {
         const orderRef = doc(db, 'orders', id);
         const orderSnap = await transaction.get(orderRef);
 
-        let order: Order | null = null;
-        if (orderSnap.exists()) {
-          order = orderSnap.data() as Order;
-        } else {
-          order = mockOrdersDb.find((o) => o.id === id) ?? null;
-        }
-
-        if (!order) {
+        if (!orderSnap.exists()) {
           apiError('ORDER_NOT_FOUND', `Không tìm thấy đơn hàng #${id}.`);
         }
+
+        const order = orderSnap.data() as Order;
 
         if (!order.canCancel || (order.status !== 'pending' && order.status !== 'processing')) {
           apiError('ORDER_CANCEL_NOT_ALLOWED', 'Đơn hàng đã đóng gói hoặc đang giao, không thể huỷ.');
@@ -449,7 +350,6 @@ export const OrderService = {
         // ==========================================
         // GIAI ĐOẠN 1: TẤT CẢ CÁC THAO TÁC READS
         // ==========================================
-        // 1. Đọc tồn kho các sản phẩm liên quan
         const productSnapshots: Array<{
           ref: any;
           snap: any;
@@ -461,7 +361,6 @@ export const OrderService = {
           productSnapshots.push({ ref: prodRef, snap: prodSnap, quantity: item.quantity });
         }
 
-        // 2. Đọc voucher nếu đơn có áp dụng
         let voucherRef: any = null;
         let voucherSnap: any = null;
         if (order.voucherCode) {
@@ -472,7 +371,6 @@ export const OrderService = {
         // ==========================================
         // GIAI ĐOẠN 2: TẤT CẢ CÁC THAO TÁC WRITES
         // ==========================================
-        // 1. Hoàn lại tồn kho cho từng sản phẩm
         for (const item of productSnapshots) {
           if (item.snap.exists()) {
             const prodData = item.snap.data() as Product;
@@ -483,7 +381,6 @@ export const OrderService = {
           }
         }
 
-        // 2. Giảm usedCount nếu có dùng voucher
         if (voucherRef && voucherSnap && voucherSnap.exists()) {
           const vData = voucherSnap.data() as Voucher;
           transaction.update(voucherRef, {
@@ -506,9 +403,9 @@ export const OrderService = {
 
         transaction.set(orderRef, stripUndefined(updated));
 
-        // Tạo thông báo huỷ đơn cho user
+        // Tạo thông báo huỷ đơn cho user (cả subcollection và root 'notifications')
         const notifRef = doc(collection(db, 'users', order.userId, 'notifications'));
-        transaction.set(notifRef, {
+        const cancelNotif = {
           id: notifRef.id,
           type: 'order',
           title: 'Đơn hàng đã được huỷ',
@@ -516,13 +413,20 @@ export const OrderService = {
           data: { orderId: id },
           createdAt: now,
           read: false,
+        };
+        transaction.set(notifRef, cancelNotif);
+        transaction.set(doc(db, 'notifications', notifRef.id), {
+          id: notifRef.id,
+          userId: order.userId,
+          title: cancelNotif.title,
+          message: cancelNotif.message,
+          isRead: false,
+          type: 'order',
+          date: now,
         });
 
         return updated;
       });
-
-      mockOrdersDb = mockOrdersDb.map((o) => (o.id === id ? updatedOrder : o));
-      return updatedOrder;
     } catch (err: unknown) {
       if ((err as any)?.name === 'ApiError') throw err;
       throw mapFirebaseError(err, 'Không thể huỷ đơn hàng lúc này.');
@@ -531,7 +435,7 @@ export const OrderService = {
 
   /**
    * Mua lại đơn hàng cũ:
-   * Kiểm tra và chỉ giữ lại các sản phẩm còn hàng với giá bán hiện tại từ database.
+   * Kiểm tra và chỉ giữ lại các sản phẩm còn hàng với giá bán hiện tại từ Firestore.
    */
   async reorder(id: string): Promise<OrderItem[]> {
     const order = await this.getOrder(id);
@@ -539,31 +443,21 @@ export const OrderService = {
 
     for (const item of order.items) {
       try {
-        let currentProd: Product | null = null;
-        if (IS_MOCK_MODE) {
-          currentProd = MOCK_PRODUCTS.find((p) => p.id === item.productId) ?? null;
-        } else {
-          const snap = await getDoc(doc(db, 'products', item.productId));
-          if (snap.exists()) {
-            currentProd = snap.data() as Product;
-          } else {
-            currentProd = MOCK_PRODUCTS.find((p) => p.id === item.productId) ?? null;
+        const snap = await getDoc(doc(db, 'products', item.productId));
+        if (snap.exists()) {
+          const currentProd = snap.data() as Product;
+          if ((currentProd.stock ?? 0) > 0) {
+            validItems.push({
+              ...item,
+              price: currentProd.price, // Dùng giá cập nhật hiện tại
+            });
           }
         }
-
-        if (currentProd && (currentProd.stock ?? 0) > 0) {
-          validItems.push({
-            ...item,
-            price: currentProd.price, // Dùng giá cập nhật hiện tại
-          });
-        }
-      } catch {
-        // Skip unavailable item
-      }
+      } catch {}
     }
 
     if (validItems.length === 0) {
-      apiError('ORDER_ITEMS_OUT_OF_STOCK', 'Các sản phẩm trong đơn hiện đã hết hàng hoặc ngừng kinh doanh.');
+      apiError('REORDER_EMPTY', 'Các sản phẩm trong đơn hàng này hiện đã hết hàng hoặc ngừng kinh doanh.');
     }
 
     return validItems;

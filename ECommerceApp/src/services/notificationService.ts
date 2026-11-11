@@ -5,13 +5,12 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
+  query,
+  where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { AppNotification, NotificationType } from '../types';
-import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
-import { MOCK_NOTIFICATIONS } from '../mock/notifications';
-
-let mockNotificationsDb: AppNotification[] = [...MOCK_NOTIFICATIONS];
+import { apiError, mapFirebaseError } from './http';
 
 async function getPersistedReadIds(uid: string): Promise<Set<string>> {
   try {
@@ -34,15 +33,6 @@ async function addPersistedReadId(uid: string, id: string): Promise<void> {
   } catch {}
 }
 
-async function addAllPersistedReadIds(uid: string, allIds: string[]): Promise<void> {
-  try {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const ids = await getPersistedReadIds(uid);
-    allIds.forEach((id) => ids.add(id));
-    await AsyncStorage.setItem(`@read_notifs_${uid}`, JSON.stringify(Array.from(ids)));
-  } catch {}
-}
-
 export interface CreateNotificationInput {
   type: NotificationType;
   title: string;
@@ -50,46 +40,61 @@ export interface CreateNotificationInput {
   data?: AppNotification['data'];
 }
 
-function getCurrentUid(explicitUid?: string): string {
-  if (explicitUid) return explicitUid;
+function resolveUid(userId?: string): string {
+  if (userId) return userId;
   const current = auth.currentUser;
   if (current?.uid) return current.uid;
-  return 'user_alex_carter';
+  return 'user_test_default';
 }
 
 /**
- * Service quản lý thông báo người dùng từ Cloud Firestore.
+ * Service quản lý thông báo người dùng 100% từ Cloud Firestore.
+ * Đồng bộ lưu trữ tại root collection 'notifications' theo chuẩn ERD
+ * và subcollection 'users/{uid}/notifications'.
  */
 export const NotificationService = {
   /** Lấy danh sách toàn bộ thông báo của người dùng */
   async listNotifications(userId?: string): Promise<AppNotification[]> {
-    const uid = getCurrentUid(userId);
-    let notifs: AppNotification[] = [];
+    const uid = resolveUid(userId);
+    if (!uid) return [];
 
-    if (IS_MOCK_MODE) {
-      notifs = [...mockNotificationsDb];
-    } else {
-      try {
-        const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
-        if (!snap.empty) {
-          notifs = snap.docs.map((d) => {
-            const data = d.data() as Partial<AppNotification>;
+    let notifs: AppNotification[] = [];
+    try {
+      const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
+      if (!snap.empty) {
+        notifs = snap.docs.map((d) => {
+          const data = d.data() as Partial<AppNotification>;
+          return {
+            id: d.id,
+            type: (data.type || 'order') as NotificationType,
+            title: data.title || 'Thông báo hệ thống',
+            message: data.message || 'Bạn có thông báo mới từ hệ thống.',
+            createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
+            read: Boolean(data.read),
+            data: data.data || {},
+          };
+        });
+      } else {
+        // Fallback: Tìm trong root collection 'notifications'
+        const q = query(collection(db, 'notifications'), where('userId', '==', uid));
+        const rootSnap = await getDocs(q);
+        if (!rootSnap.empty) {
+          notifs = rootSnap.docs.map((d) => {
+            const data = d.data();
             return {
               id: d.id,
               type: (data.type || 'order') as NotificationType,
               title: data.title || 'Thông báo hệ thống',
               message: data.message || 'Bạn có thông báo mới từ hệ thống.',
-              createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
-              read: Boolean(data.read),
-              data: data.data || {},
+              createdAt: data.date ? String(data.date) : new Date().toISOString(),
+              read: Boolean(data.isRead),
+              data: {},
             };
           });
-        } else {
-          notifs = [...mockNotificationsDb];
         }
-      } catch {
-        notifs = [...mockNotificationsDb];
       }
+    } catch {
+      notifs = [];
     }
 
     const readIds = await getPersistedReadIds(uid);
@@ -106,20 +111,18 @@ export const NotificationService = {
 
   /** Đánh dấu một thông báo là đã đọc */
   async markAsRead(id: string, userId?: string): Promise<AppNotification> {
-    const uid = getCurrentUid(userId);
+    const uid = resolveUid(userId);
     await addPersistedReadId(uid, id);
 
-    if (IS_MOCK_MODE) {
-      const existing = mockNotificationsDb.find((n) => n.id === id);
-      if (!existing) apiError('NOTIFICATION_NOT_FOUND', 'Không tìm thấy thông báo.');
-      const updated: AppNotification = { ...existing, read: true };
-      mockNotificationsDb = mockNotificationsDb.map((n) => (n.id === id ? updated : n));
-      return updated;
-    }
-
     try {
-      const notifRef = doc(db, 'users', uid, 'notifications', id);
-      await setDoc(notifRef, { read: true }, { merge: true });
+      const batch = writeBatch(db);
+      const subRef = doc(db, 'users', uid, 'notifications', id);
+      const rootRef = doc(db, 'notifications', id);
+
+      batch.set(subRef, { read: true }, { merge: true });
+      batch.set(rootRef, { isRead: true }, { merge: true });
+      await batch.commit().catch(() => {});
+
       const notifs = await this.listNotifications(uid);
       const target = notifs.find((n) => n.id === id);
       if (target) return target;
@@ -132,72 +135,75 @@ export const NotificationService = {
         read: true,
       };
     } catch (err: unknown) {
-      const existing = mockNotificationsDb.find((n) => n.id === id);
-      if (existing) {
-        const updated = { ...existing, read: true };
-        mockNotificationsDb = mockNotificationsDb.map((n) => (n.id === id ? updated : n));
-        return updated;
-      }
       throw mapFirebaseError(err, 'Không thể cập nhật thông báo.');
     }
   },
 
   /** Đánh dấu toàn bộ thông báo của người dùng là đã đọc */
   async markAllAsRead(userId?: string): Promise<AppNotification[]> {
-    const uid = getCurrentUid(userId);
-    mockNotificationsDb = mockNotificationsDb.map((n) => ({ ...n, read: true }));
-    await addAllPersistedReadIds(uid, mockNotificationsDb.map((n) => n.id));
-
-    if (IS_MOCK_MODE) {
-      return [...mockNotificationsDb];
-    }
+    const uid = resolveUid(userId);
 
     try {
-      const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
       const batch = writeBatch(db);
-      snap.docs.forEach((d) => {
+
+      const subSnap = await getDocs(collection(db, 'users', uid, 'notifications'));
+      subSnap.docs.forEach((d) => {
         if (!d.data().read) {
           batch.update(d.ref, { read: true });
         }
       });
+
+      const rootQ = query(collection(db, 'notifications'), where('userId', '==', uid));
+      const rootSnap = await getDocs(rootQ);
+      rootSnap.docs.forEach((d) => {
+        if (!d.data().isRead) {
+          batch.update(d.ref, { isRead: true });
+        }
+      });
+
       await batch.commit();
       return await this.listNotifications(uid);
-    } catch {
-      return [...mockNotificationsDb];
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể đánh dấu tất cả thông báo đã đọc.');
     }
   },
 
-  /** Tạo thông báo mới cho người dùng (ví dụ: biến động đơn hàng, khuyến mãi) */
+  /** Tạo thông báo mới cho người dùng (ghi đồng bộ cả subcollection và root 'notifications') */
   async createNotification(input: CreateNotificationInput, userId?: string): Promise<AppNotification> {
-    const uid = getCurrentUid(userId);
+    const uid = resolveUid(userId);
     const now = new Date().toISOString();
-    const id = `ntf-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    const notification: AppNotification = {
-      id,
+    const notifRef = doc(collection(db, 'users', uid, 'notifications'));
+    const realId = notifRef.id;
+    const dataWithId: any = {
+      id: realId,
       type: input.type,
       title: input.title,
       message: input.message,
-      data: input.data,
       createdAt: now,
       read: false,
     };
-
-    if (IS_MOCK_MODE) {
-      mockNotificationsDb = [notification, ...mockNotificationsDb];
-      return notification;
+    if (input.data !== undefined) {
+      dataWithId.data = input.data;
     }
 
     try {
-      const notifRef = doc(collection(db, 'users', uid, 'notifications'));
-      const realId = notifRef.id;
-      const dataWithId: AppNotification = { ...notification, id: realId };
-      await setDoc(notifRef, dataWithId);
-      mockNotificationsDb = [dataWithId, ...mockNotificationsDb];
-      return dataWithId;
-    } catch {
-      mockNotificationsDb = [notification, ...mockNotificationsDb];
-      return notification;
+      const batch = writeBatch(db);
+      batch.set(notifRef, dataWithId);
+      batch.set(doc(db, 'notifications', realId), {
+        id: realId,
+        userId: uid,
+        title: input.title,
+        message: input.message,
+        isRead: false,
+        type: input.type,
+        date: now,
+      });
+      await batch.commit();
+
+      return dataWithId as AppNotification;
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tạo thông báo.');
     }
   },
 };

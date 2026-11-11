@@ -266,6 +266,11 @@ test('ProfileService: adding custom card and deleting it restores COD fallback',
 /* -------------------------------------------------------------------------- */
 
 test('NotificationService: markAsRead and markAllAsRead update read state', async () => {
+  await NotificationService.createNotification({
+    type: 'order',
+    title: 'Đơn hàng mới',
+    message: 'Bạn có một đơn hàng mới',
+  });
   const notifs = await NotificationService.listNotifications();
   assert.ok(notifs.length > 0);
 

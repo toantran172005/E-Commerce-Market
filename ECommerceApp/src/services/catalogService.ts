@@ -3,10 +3,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  query,
-  where,
-  orderBy,
-  limit as fsLimit,
   setDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -17,12 +13,7 @@ import {
   Review,
   ShippingMethod,
 } from '../types';
-import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
-import { MOCK_CATEGORIES } from '../mock/categories';
-import { MOCK_BRANDS } from '../mock/brands';
-import { MOCK_PRODUCTS } from '../mock/products';
-import { MOCK_REVIEWS } from '../mock/reviews';
-import { MOCK_SHIPPING_METHODS } from '../mock/shippingMethods';
+import { apiError, mapFirebaseError } from './http';
 
 export interface Paged<T> {
   items: T[];
@@ -47,57 +38,75 @@ export interface ProductQuery {
   limit?: number;
 }
 
+const STANDARD_SHIPPING_METHODS: ShippingMethod[] = [
+  {
+    id: 'ship-standard',
+    type: 'standard',
+    name: 'Giao hàng tiêu chuẩn',
+    description: 'Nhận hàng sau 3-5 ngày làm việc',
+    estimatedDays: '3 - 5 ngày',
+    fee: 30000,
+    freeOver: 500000,
+  },
+  {
+    id: 'ship-express',
+    type: 'express',
+    name: 'Giao hàng hỏa tốc',
+    description: 'Nhận hàng trong 24 giờ',
+    estimatedDays: '1 ngày',
+    fee: 55000,
+    freeOver: 1000000,
+  },
+  {
+    id: 'ship-same-day',
+    type: 'sameDay',
+    name: 'Giao hàng siêu tốc 2h',
+    description: 'Nhận hàng ngay trong 2 giờ',
+    estimatedDays: '2 giờ',
+    fee: 80000,
+    freeOver: 2000000,
+  },
+];
+
 /**
- * Service quản lý danh mục, thương hiệu, sản phẩm và đánh giá từ Cloud Firestore.
+ * Service quản lý danh mục, thương hiệu, sản phẩm và đánh giá 100% từ Cloud Firestore.
  */
 export const CatalogService = {
-  /** Lấy danh sách toàn bộ danh mục ngành hàng */
+  /** Lấy danh sách toàn bộ danh mục ngành hàng từ Firestore */
   async getCategories(): Promise<Category[]> {
-    if (IS_MOCK_MODE) return MOCK_CATEGORIES;
-
     try {
       const snap = await getDocs(collection(db, 'categories'));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
-      }
-      return MOCK_CATEGORIES;
-    } catch {
-      return MOCK_CATEGORIES;
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tải danh mục sản phẩm từ Firestore.');
     }
   },
 
-  /** Lấy danh sách các thương hiệu */
+  /** Lấy danh sách các thương hiệu từ Firestore */
   async getBrands(): Promise<Brand[]> {
-    if (IS_MOCK_MODE) return MOCK_BRANDS;
-
     try {
       const snap = await getDocs(collection(db, 'brands'));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Brand, 'id'>) }));
-      }
-      return MOCK_BRANDS;
-    } catch {
-      return MOCK_BRANDS;
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Brand, 'id'>) }));
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tải thương hiệu từ Firestore.');
     }
   },
 
   /** Lấy danh sách phương thức vận chuyển */
   async getShippingMethods(): Promise<ShippingMethod[]> {
-    if (IS_MOCK_MODE) return MOCK_SHIPPING_METHODS;
-
     try {
       const snap = await getDocs(collection(db, 'shippingMethods'));
       if (!snap.empty) {
         return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ShippingMethod, 'id'>) }));
       }
-      return MOCK_SHIPPING_METHODS;
+      return STANDARD_SHIPPING_METHODS;
     } catch {
-      return MOCK_SHIPPING_METHODS;
+      return STANDARD_SHIPPING_METHODS;
     }
   },
 
   /**
-   * Truy vấn danh sách sản phẩm kết hợp đa tiêu chí:
+   * Truy vấn danh sách sản phẩm kết hợp đa tiêu chí từ Firestore:
    * Tìm kiếm từ khoá, phân loại theo danh mục, thương hiệu, khoảng giá, rating, sắp xếp và phân trang.
    */
   async getProducts(productQuery: ProductQuery = {}): Promise<Paged<Product>> {
@@ -106,23 +115,14 @@ export const CatalogService = {
     const q = (productQuery.q ?? '').trim().toLowerCase();
 
     let allProducts: Product[] = [];
-
-    if (!IS_MOCK_MODE) {
-      try {
-        const snap = await getDocs(collection(db, 'products'));
-        if (!snap.empty) {
-          allProducts = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }));
-        } else {
-          allProducts = MOCK_PRODUCTS;
-        }
-      } catch {
-        allProducts = MOCK_PRODUCTS;
-      }
-    } else {
-      allProducts = MOCK_PRODUCTS;
+    try {
+      const snap = await getDocs(collection(db, 'products'));
+      allProducts = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }));
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tải sản phẩm từ Firestore.');
     }
 
-    // Lọc theo các tiêu chí (Client-side matching đảm bảo 100% nhất quán)
+    // Lọc theo các tiêu chí (Client-side matching)
     let filtered = allProducts.filter((p) => {
       // 1. Từ khoá tìm kiếm
       if (q) {
@@ -180,10 +180,10 @@ export const CatalogService = {
 
     const total = filtered.length;
     const start = (page - 1) * limitNum;
-    const items = filtered.slice(start, start + limitNum);
+    const pagedItems = filtered.slice(start, start + limitNum);
 
     return {
-      items,
+      items: pagedItems,
       page,
       limit: limitNum,
       total,
@@ -191,49 +191,31 @@ export const CatalogService = {
     };
   },
 
-  /** Lấy chi tiết một sản phẩm theo ID */
+  /** Lấy chi tiết một sản phẩm theo ID từ Firestore */
   async getProductById(id: string): Promise<Product> {
-    if (IS_MOCK_MODE) {
-      const p = MOCK_PRODUCTS.find((item) => item.id === id);
-      if (!p) apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
-      return p;
-    }
-
     try {
       const snap = await getDoc(doc(db, 'products', id));
       if (snap.exists()) {
         return { id: snap.id, ...(snap.data() as Omit<Product, 'id'>) };
       }
-      // Fallback check mock
-      const p = MOCK_PRODUCTS.find((item) => item.id === id);
-      if (p) return p;
       apiError('PRODUCT_NOT_FOUND', `Không tìm thấy sản phẩm #${id}.`);
     } catch (err: unknown) {
       if ((err as any)?.code === 'PRODUCT_NOT_FOUND') throw err;
-      const p = MOCK_PRODUCTS.find((item) => item.id === id);
-      if (p) return p;
       throw mapFirebaseError(err, `Không tìm thấy sản phẩm #${id}.`);
     }
   },
 
-  /** Lấy danh sách đánh giá của sản phẩm */
+  /** Lấy danh sách đánh giá của sản phẩm từ Firestore */
   async getProductReviews(productId: string): Promise<Review[]> {
-    if (IS_MOCK_MODE) {
-      return MOCK_REVIEWS.filter((r) => r.productId === productId);
-    }
-
     try {
       const snap = await getDocs(collection(db, 'products', productId, 'reviews'));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Review, 'id'>) }));
-      }
-      return MOCK_REVIEWS.filter((r) => r.productId === productId);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Review, 'id'>) }));
     } catch {
-      return MOCK_REVIEWS.filter((r) => r.productId === productId);
+      return [];
     }
   },
 
-  /** Thêm đánh giá mới cho sản phẩm (lưu vào Firestore và local mock) */
+  /** Thêm đánh giá mới cho sản phẩm vào Firestore */
   async addProductReview(
     productId: string,
     review: Omit<Review, 'id' | 'productId'>,
@@ -245,16 +227,24 @@ export const CatalogService = {
       createdAt: review.createdAt || new Date().toISOString(),
     };
 
-    if (!IS_MOCK_MODE) {
-      try {
-        const ref = doc(collection(db, 'products', productId, 'reviews'), newReview.id);
-        await setDoc(ref, newReview);
-      } catch {
-        // Fallback below
-      }
+    try {
+      const ref = doc(collection(db, 'products', productId, 'reviews'), newReview.id);
+      await setDoc(ref, newReview);
+      return newReview;
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể gửi đánh giá sản phẩm.');
     }
+  },
 
-    MOCK_REVIEWS.unshift(newReview);
-    return newReview;
+  /** Lấy danh sách thuộc tính sản phẩm từ root collection 'product_attributes' (ERD) */
+  async getProductAttributes(productId: string): Promise<Array<{ id: string; productId: string; type: string; name: string; value: string }>> {
+    try {
+      const { query, where } = await import('firebase/firestore');
+      const q = query(collection(db, 'product_attributes'), where('productId', '==', productId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    } catch {
+      return [];
+    }
   },
 };
