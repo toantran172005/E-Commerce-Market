@@ -1,15 +1,20 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
+import { Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/constants/theme';
+import { useAuth } from '../../src/context/AuthContext';
 import { useFavourites } from '../../src/context/FavouritesContext';
 import { useNotifications } from '../../src/context/NotificationsContext';
 
 export default function TabLayout() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { favourites } = useFavourites();
   const { unreadCount } = useNotifications();
 
+  const isGuest = !user || user.isGuest === true;
   const bottomInset = Math.max(insets.bottom, 8);
 
   return (
@@ -50,9 +55,24 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="favourite"
+        listeners={{
+          tabPress: (e) => {
+            if (isGuest) {
+              e.preventDefault();
+              Alert.alert(
+                'Yêu cầu đăng nhập',
+                'Vui lòng đăng nhập để xem và lưu sản phẩm yêu thích.',
+                [
+                  { text: 'Huỷ', style: 'cancel' },
+                  { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+                ],
+              );
+            }
+          },
+        }}
         options={{
           title: 'Yêu thích',
-          tabBarBadge: favourites.length > 0 ? favourites.length : undefined,
+          tabBarBadge: !isGuest && favourites.length > 0 ? favourites.length : undefined,
           // Badge màu primary, nổi bật trên nền trắng
           tabBarBadgeStyle: { backgroundColor: colors.primary, color: colors.white },
           tabBarIcon: ({ color, focused }) => (
@@ -67,9 +87,24 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="account"
+        listeners={{
+          tabPress: (e) => {
+            if (isGuest) {
+              e.preventDefault();
+              Alert.alert(
+                'Yêu cầu đăng nhập',
+                'Vui lòng đăng nhập để truy cập tài khoản.',
+                [
+                  { text: 'Huỷ', style: 'cancel' },
+                  { text: 'Đăng nhập', onPress: () => router.push('/(auth)/login') },
+                ],
+              );
+            }
+          },
+        }}
         options={{
           title: 'Tài khoản',
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadge: !isGuest && unreadCount > 0 ? unreadCount : undefined,
           // Badge thông báo dùng màu danger
           tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.white },
           tabBarIcon: ({ color, focused }) => (

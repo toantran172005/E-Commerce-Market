@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ import type { CartItem } from '../src/types';
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const {
     items,
@@ -46,6 +47,36 @@ export default function CartScreen() {
   const [promoApplying, setPromoApplying] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+
+  const isGuest = !user || user.isGuest === true;
+
+  useEffect(() => {
+    if (isGuest) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để sử dụng giỏ hàng.',
+        [
+          { text: 'Đăng nhập', onPress: () => router.replace('/(auth)/login') },
+        ],
+        { cancelable: false },
+      );
+    }
+  }, [isGuest, router]);
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScreenHeader title="Giỏ hàng" subtitle="Yêu cầu đăng nhập" />
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Yêu cầu đăng nhập"
+          subtitle="Vui lòng đăng nhập để xem và quản lý giỏ hàng của bạn."
+          actionLabel="Đăng nhập ngay"
+          onAction={() => router.replace('/(auth)/login')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   // Nếu chưa chọn sản phẩm nào thì không tính phí ship/thuế để tránh hiển thị sai.
   const displayTotals =
@@ -78,8 +109,6 @@ export default function CartScreen() {
       setPromoApplying(false);
     }
   }, [applyVoucher, promoCode]);
-
-  const { user } = useAuth();
 
   const handleRemoveVoucher = useCallback(() => {
     removeVoucher();

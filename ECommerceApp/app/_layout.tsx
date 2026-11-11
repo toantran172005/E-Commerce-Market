@@ -33,8 +33,8 @@ function RootNavigator() {
     if (!user && !isInAuthGroup) {
       // Chưa đăng nhập -> buộc về màn login.
       router.replace('/(auth)/login');
-    } else if (user && isInAuthGroup) {
-      // Đã đăng nhập mà đang ở màn auth -> về Home.
+    } else if (user && !user.isGuest && isInAuthGroup) {
+      // Đã đăng nhập tài khoản thật mà đang ở màn auth -> về Home.
       router.replace('/(tabs)/home');
     }
   }, [user, isLoading, segments, router]);

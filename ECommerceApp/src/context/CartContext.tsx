@@ -70,11 +70,11 @@ export function CartProvider({
     return () => { isMounted = false; };
   }, []);
 
-  // Tải giỏ hàng từ Firestore khi user đăng nhập
+  // Tải giỏ hàng từ Firestore khi user đăng nhập (chỉ cho user thật, khách thì luôn là rỗng)
   useEffect(() => {
     let active = true;
     isLoadedRef.current = false;
-    if (user?.uid) {
+    if (user?.uid && !user.isGuest) {
       CartService.listCartItems(user.uid)
         .then((cartList) => {
           if (active) {
@@ -96,7 +96,7 @@ export function CartProvider({
     return () => {
       active = false;
     };
-  }, [user?.uid, resetKey]);
+  }, [user?.uid, user?.isGuest, resetKey]);
 
   // Tự động lưu giỏ hàng lên Firestore khi items thay đổi (chỉ cho user đã đăng nhập, không lưu cho guest)
   useEffect(() => {
@@ -110,6 +110,9 @@ export function CartProvider({
   }, [shippingMethods, selectedShippingId]);
 
   const addItem = useCallback((product: Product, quantity = 1, variantId?: string) => {
+    if (!user || user.isGuest) {
+      return;
+    }
     const key = cartItemKey(product.id, variantId);
     setItems((prev) => {
       const existing = prev.find((i) => i.id === key);
@@ -131,7 +134,7 @@ export function CartProvider({
         },
       ];
     });
-  }, []);
+  }, [user]);
 
   const removeItem = useCallback((itemId: string) => {
     setItems((prev) => prev.filter((i) => i.id !== itemId));
@@ -200,24 +203,27 @@ export function CartProvider({
     }
   }, [user?.uid]);
 
+  const isGuest = !user || user.isGuest === true;
+  const currentItems = isGuest ? [] : items;
+
   const totalItems = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items],
+    () => (isGuest ? 0 : items.reduce((sum, item) => sum + item.quantity, 0)),
+    [isGuest, items],
   );
 
   const selectedCount = useMemo(
-    () => items.filter((i) => i.selected).reduce((sum, item) => sum + item.quantity, 0),
-    [items],
+    () => (isGuest ? 0 : items.filter((i) => i.selected).reduce((sum, item) => sum + item.quantity, 0)),
+    [isGuest, items],
   );
 
   const totals = useMemo(
-    () => computeCartTotals(items, voucher, selectedShipping),
-    [items, voucher, selectedShipping],
+    () => computeCartTotals(currentItems, voucher, selectedShipping),
+    [currentItems, voucher, selectedShipping],
   );
 
   const value = useMemo(
     () => ({
-      items,
+      items: currentItems,
       voucher,
       totalItems,
       selectedCount,
