@@ -28,6 +28,7 @@ import { useCart } from '../context/CartContext';
 import { useFavourites } from '../context/FavouritesContext';
 import { useAddresses } from '../context/AddressesContext';
 import { useOrders } from '../context/OrdersContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { CatalogService } from '../services/catalogService';
 import { OrderService } from '../services/orderService';
 import {
@@ -126,6 +127,7 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
   const favourites = useFavourites();
   const addresses = useAddresses();
   const orders = useOrders();
+  const notifications = useNotifications();
 
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatUiMessage[]>([]);
@@ -141,8 +143,11 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
         catalog: CatalogService,
         order: OrderService,
         addresses: addresses.addresses,
+        notifications: {
+          createNotification: (input: any) => notifications.addNotification(input),
+        },
       }),
-    [addresses.addresses, auth, cart, favourites]
+    [addresses.addresses, auth, cart, favourites, notifications]
   );
 
   useEffect(() => {
@@ -250,6 +255,12 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
           // Reload orders context so user profile and orders screen update immediately
           try {
             await orders.loadOrders();
+          } catch {
+            // ignore
+          }
+          // Reload notifications so notification screen updates with the new order notification
+          try {
+            await notifications.loadNotifications();
           } catch {
             // ignore
           }

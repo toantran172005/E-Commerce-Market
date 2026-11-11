@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { NotificationService } from './notificationService';
 
 export type ChatIntentName =
   | 'search_products'
@@ -125,6 +126,14 @@ export interface ChatBotRuntime {
   orders: {
     createOrder: (draft: ChatOrderDraft) => Promise<ChatOrderResult>;
   };
+  notifications?: {
+    createNotification?: (input: {
+      type: string;
+      title: string;
+      message: string;
+      data?: Record<string, unknown>;
+    }) => Promise<unknown>;
+  };
 }
 
 export interface ChatBotRuntimeSources {
@@ -134,6 +143,7 @@ export interface ChatBotRuntimeSources {
   catalog?: unknown;
   order?: unknown;
   addresses?: unknown;
+  notifications?: unknown;
 }
 
 export interface ProcessChatMessageParams {
@@ -395,11 +405,12 @@ function normalizeCartItems(value: unknown): ChatCartItem[] {
 }
 
 function normalizeUser(auth: unknown, addressesOverride?: unknown): ChatUserContext {
-  const user = readProperty<unknown>(
-    auth,
-    ['user', 'currentUser', 'profile', 'session'],
-    null
-  );
+  const user =
+    readProperty<unknown>(
+      auth,
+      ['user', 'currentUser', 'profile', 'session'],
+      null
+    ) ?? auth;
   const userRecord = asRecord(user);
   const rawAddresses =
     addressesOverride ?? userRecord?.addresses ?? readProperty<unknown>(auth, ['addresses'], []);
@@ -590,8 +601,12 @@ function filterProducts(
   products: ChatProduct[],
   params: ChatProductSearchParams
 ): ChatProduct[] {
-  const rawQuery = params.query ? normalizeVietnamese(params.query) : '';
-  const categoryParam = params.category ? normalizeVietnamese(params.category) : '';
+  const rawQuery = params.query ? normalizeVietnamese(params.query).trim() : '';
+  const categoryParam = params.category ? normalizeVietnamese(params.category).trim() : '';
+
+  if (!rawQuery && !categoryParam && params.minPrice === undefined && params.maxPrice === undefined) {
+    return [];
+  }
 
   const queryTokens = rawQuery
     ? rawQuery.split(/\s+/).filter((t) => t.length > 1)
@@ -794,19 +809,29 @@ export function createChatBotRuntime(
     cart: {
       addProduct: cartMethods.addProduct,
       removeProduct: cartMethods.removeProduct,
-      getItems: () =>
-        normalizeCartItems(
+      getItems: () => {
+        if (typeof (sources.cart as any)?.getItems === 'function') {
+          return normalizeCartItems((sources.cart as any).getItems());
+        }
+        return normalizeCartItems(
           readProperty<unknown>(
             sources.cart,
             ['items', 'cartItems', 'products'],
             []
           )
-        ),
+        );
+      },
     },
     favourites: favMethods,
     catalog: catalogMethods,
     orders: {
       createOrder,
+    },
+    notifications: {
+      createNotification: getMethod(sources.notifications, [
+        'createNotification',
+        'addNotification',
+      ]) as any,
     },
   };
 }
@@ -1006,6 +1031,10 @@ QUY TẮC XỬ LÝ QUAN TRỌNG:
   -> Hãy thẳng thắn nhận lỗi, xin lỗi vì gợi ý nhầm và trả lời đúng trọng tâm câu hỏi của khách hàng. Tuyệt đối không trả lời máy móc hay lặp lại các câu mặc định!
 - Nếu người dùng tìm kiếm sản phẩm với tiêu chí cụ thể (ví dụ: "laptop dưới 15 triệu"):
   -> Kiểm tra kỹ danh mục sản phẩm ở trên (có Asus Vivobook OLED 13.990.000đ và Lenovo IdeaPad Slim 3 11.490.000đ). Trả về đúng các mẫu laptop này!
+- Nếu người dùng hỏi một thương hiệu mà cửa hàng chưa có (ví dụ: "cần tìm laptop acer") và bạn gợi ý sang các mẫu máy tương đương đang có sẵn (như Asus Vivobook, Lenovo IdeaPad, Xiaomi RedmiBook):
+  -> BẮT BUỘC gán ID của các mẫu bạn gợi ý vào mảng "productIds" (ví dụ: ["asus-vivobook-15-oled", "lenovo-ideapad-slim-3"]) để giao diện hiển thị đúng thẻ của các sản phẩm đó!
+- Nếu người dùng hỏi mua thương hiệu cụ thể (ví dụ: "có asus đi", "cho xem tai nghe sony"):
+  -> Tìm đúng các sản phẩm Asus/Sony trong danh mục và gán ID vào "productIds"!
 
 2. QUẢN LÝ SẢN PHẨM YÊU THÍCH & GIỎ HÀNG:
 - Khi người dùng hỏi xem danh sách yêu thích ("Tôi có những sản phẩm yêu thích nào?", "Xem yêu thích", "Có sản phẩm yêu thích nào"):
@@ -1016,9 +1045,9 @@ QUY TẮC XỬ LÝ QUAN TRỌNG:
   -> Trả về intent "view_cart".
 
 3. ĐẶT HÀNG QUA CHAT:
-- Khi người dùng yêu cầu đặt hàng (ví dụ: "đặt hàng", "đặt các sản phẩm trong giỏ", "mua ngay món này"):
+- Khi người dùng yêu cầu đặt hàng (ví dụ: "đặt hàng", "đặt các sản phẩm trong giỏ", "thấy giỏ hàng không? đặt mua dùm tôi", "mua ngay món này", "đặt mua giỏ hàng"):
   -> Trả về intent "place_order".
-  -> Nếu họ muốn mua món cụ thể, gán "productName" hoặc "productId". Nếu muốn đặt giỏ hàng, để "productId" trống để hệ thống tự lấy toàn bộ giỏ hàng.
+  -> Nếu họ muốn mua món cụ thể, gán "productName" hoặc "productId". Nếu muốn đặt giỏ hàng, để "productId" trống để hệ thống tự lấy toàn bộ giỏ hàng và tạo đơn hàng.
 
 4. PHÂN QUYỀN GUEST / KHÁCH & ĐĂNG XUẤT:
 - Khi người dùng yêu cầu đăng xuất (ví dụ: "đăng xuất", "đăng xuất tài khoản", "logout", "thoát tài khoản"):
@@ -1049,40 +1078,54 @@ BẮT BUỘC trả về một JSON object duy nhất, không bọc markdown \`\`
 }`;
 }
 
+const DEEPSEEK_MODEL =
+  (process.env.EXPO_PUBLIC_DEEPSEEK_MODEL as string | undefined) ||
+  (process.env.DEEPSEEK_MODEL as string | undefined) ||
+  'deepseek-reasoner';
+
 async function callDeepSeek(
   apiKey: string,
   messages: DeepSeekMessage[]
 ): Promise<ChatIntent> {
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-      messages,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `DeepSeek API ${response.status}: ${errorText.slice(0, 200)}`
-    );
+  try {
+    const isReasoner = DEEPSEEK_MODEL.includes('reasoner');
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: DEEPSEEK_MODEL,
+        temperature: isReasoner ? undefined : 0.3,
+        response_format: { type: 'json_object' },
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `DeepSeek API ${response.status}: ${errorText.slice(0, 200)}`
+      );
+    }
+
+    const raw: unknown = await response.json();
+    const data = raw as DeepSeekApiResponse;
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error(data.error?.message ?? 'DeepSeek không trả về nội dung.');
+    }
+
+    return normalizeIntent(parseJsonObject(content));
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const raw: unknown = await response.json();
-  const data = raw as DeepSeekApiResponse;
-  const content = data.choices?.[0]?.message?.content;
-
-  if (!content) {
-    throw new Error(data.error?.message ?? 'DeepSeek không trả về nội dung.');
-  }
-
-  return normalizeIntent(parseJsonObject(content));
 }
 
 function extractCleanQuery(message: string): { query: string; category?: string } {
@@ -1138,7 +1181,10 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
   } else if (/(xin chao|chao|hello|hi)\b/.test(normalized)) {
     intent = 'greeting';
     reply = 'Xin chào bạn! Mình là Trợ Lý AI, mình có thể giúp gì cho bạn hôm nay?';
-  } else if (/(dat hang|dat don|mua hang|order|thanh toan)/.test(normalized)) {
+  } else if (
+    /(dat hang|dat don|mua hang|order|thanh toan|dat mua|chot don)/.test(normalized) ||
+    /(thay|xem|co|kiem tra).*?(gio hang).*?(dat|mua|thanh toan)/.test(normalized)
+  ) {
     intent = 'place_order';
     reply = 'Mình sẽ chuẩn bị thông tin đơn hàng cho bạn ngay đây.';
   } else if (/(xoa|bo|remove|go).*(yeu thich|favorite|thich)/.test(normalized)) {
@@ -1158,11 +1204,14 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
     /(xem.*gio|gio hang.*co gi|kiem tra.*gio|trong gio.*co gi|cac san pham trong gio)/.test(
       normalized
     ) &&
-    !/(dat hang|dat don|thanh toan|mua)/.test(normalized)
+    !/(dat hang|dat don|thanh toan|dat mua|mua)/.test(normalized)
   ) {
     intent = 'view_cart';
     reply = '';
-  } else if (/(them.*gio|cho.*gio|mua|add to cart|gio hang)/.test(normalized)) {
+  } else if (
+    /(them.*gio|cho.*gio|add to cart)/.test(normalized) ||
+    (/(mua|gio hang)/.test(normalized) && !/(dat hang|dat don|thanh toan|dat mua|chot don)/.test(normalized))
+  ) {
     intent = 'add_to_cart';
     reply = 'Mình sẽ kiểm tra và thêm sản phẩm vào giỏ hàng cho bạn.';
   } else if (
@@ -1313,29 +1362,7 @@ async function handleSearchProducts(
 ): Promise<ChatBotResponse> {
   const all = await runtime.catalog.getAllProducts();
 
-  // 0. Check if user is asking for best-sellers / popular
-  const isPopularQuery =
-    (intent.productQuery?.query && /(ban chay|hot|noi bat|pho bien|top|best seller)/i.test(intent.productQuery.query)) ||
-    (intent.productName && /(ban chay|hot|noi bat|pho bien|top|best seller)/i.test(intent.productName)) ||
-    (intent.reply && /(bán chạy|nổi bật|hot)/i.test(intent.reply) && (!intent.productIds || intent.productIds.length === 0));
-
-  if (isPopularQuery) {
-    const popularProds = [...all]
-      .sort((a, b) => ((b as any).soldCount ?? 0) - ((a as any).soldCount ?? 0))
-      .slice(0, 5);
-
-    if (popularProds.length > 0) {
-      return {
-        intent: 'search_products',
-        reply: intent.reply && !intent.reply.includes('không dám gợi ý')
-          ? intent.reply
-          : 'Dưới đây là các sản phẩm công nghệ bán chạy và được yêu thích nhất tại cửa hàng:',
-        products: popularProds,
-      };
-    }
-  }
-
-  // If DeepSeek returned specific product IDs that matched
+  // 1. If DeepSeek returned specific product IDs, prioritize them immediately
   if (intent.productIds && intent.productIds.length > 0) {
     let matched = all.filter((p) => intent.productIds!.includes(p.id));
     if (intent.productQuery?.maxPrice != null) {
@@ -1349,6 +1376,31 @@ async function handleSearchProducts(
         intent: 'search_products',
         reply: intent.reply,
         products: matched,
+      };
+    }
+  }
+
+  // 2. Check if user is asking for best-sellers / popular (strictly avoid matching "top" in "laptop")
+  const qStr = normalizeVietnamese(intent.productQuery?.query || intent.productName || '');
+  const isSpecificCat = /(laptop|dien thoai|tai nghe|dong ho|may tinh|ipad|macbook|tablet|asus|acer|dell|hp|lenovo|xiaomi|samsung|apple|sony)/i.test(qStr);
+  const isPopularQuery = !isSpecificCat && (
+    /\b(ban chay|bán chạy|hang hot|hàng hot|hot nhat|hot nhất|bestseller|best seller)\b/i.test(qStr) ||
+    (/\btop\b/i.test(qStr) && !/(laptop|desktop)/i.test(qStr)) ||
+    (intent.reply && /(sản phẩm bán chạy nhất|mặt hàng bán chạy|top sản phẩm bán chạy)/i.test(intent.reply) && !intent.productQuery?.query && (!intent.productIds || intent.productIds.length === 0))
+  );
+
+  if (isPopularQuery) {
+    const popularProds = [...all]
+      .sort((a, b) => ((b as any).soldCount ?? 0) - ((a as any).soldCount ?? 0))
+      .slice(0, 5);
+
+    if (popularProds.length > 0) {
+      return {
+        intent: 'search_products',
+        reply: intent.reply && !intent.reply.includes('không dám gợi ý')
+          ? intent.reply
+          : 'Dưới đây là các sản phẩm công nghệ bán chạy và được yêu thích nhất tại cửa hàng:',
+        products: popularProds,
       };
     }
   }
@@ -1380,6 +1432,27 @@ async function handleSearchProducts(
       if (byQuery.length > 0) {
         products = byQuery;
       }
+    }
+  }
+
+  // 3. If query didn't find products directly, check if AI's reply mentioned available catalog products
+  if (products.length === 0 && intent.reply) {
+    const replyNorm = normalizeVietnamese(intent.reply);
+    const mentioned = all.filter((p) => {
+      const pNameNorm = normalizeVietnamese(p.name);
+      if (replyNorm.includes(pNameNorm)) return true;
+      const tokens = pNameNorm.split(/\s+/).filter((w) => w.length > 2);
+      if (tokens.length >= 2) {
+        return replyNorm.includes(`${tokens[0]} ${tokens[1]}`);
+      }
+      return false;
+    });
+    if (mentioned.length > 0) {
+      return {
+        intent: 'search_products',
+        reply: intent.reply,
+        products: mentioned.slice(0, 5),
+      };
     }
   }
 
@@ -1726,8 +1799,27 @@ export async function processChatMessage({
   history,
   runtime,
 }: ProcessChatMessageParams): Promise<ChatBotResponse> {
-  const intent = await requestIntent(message, history, runtime);
-  return handleIntent(intent, runtime);
+  const timeoutPromise = new Promise<ChatBotResponse>((resolve) => {
+    setTimeout(async () => {
+      try {
+        const fallback = fallbackIntent(message, runtime);
+        const res = await handleIntent(fallback, runtime);
+        resolve(res);
+      } catch {
+        resolve({
+          intent: 'general',
+          reply: 'Xin lỗi bạn, đường truyền phản hồi hơi chậm. Bạn thử nhắn lại giúp mình nhé!',
+        });
+      }
+    }, 14000);
+  });
+
+  const workerPromise = (async () => {
+    const intent = await requestIntent(message, history, runtime);
+    return handleIntent(intent, runtime);
+  })();
+
+  return Promise.race([workerPromise, timeoutPromise]);
 }
 
 export async function executeChatAction(
@@ -1848,6 +1940,24 @@ export async function createOrderFromDraft(
 
   const result = await runtime.orders.createOrder(draft);
   const orderCode = (result.code && result.code !== 'unknown') ? result.code : result.orderId;
+
+  // Gửi thông báo đặt hàng thành công
+  try {
+    const notifPayload = {
+      type: 'order' as const,
+      title: 'Đặt hàng thành công',
+      message: `Đơn #${orderCode} đã được ghi nhận qua Trợ Lý AI. Tổng ${formatCurrencyVND(draft.totalAmount ?? 0)}.`,
+      data: { orderId: result.orderId, code: orderCode },
+    };
+
+    if (runtime.notifications?.createNotification) {
+      await runtime.notifications.createNotification(notifPayload);
+    } else if (runtime.user.userId) {
+      await NotificationService.createNotification(notifPayload, runtime.user.userId);
+    }
+  } catch (err) {
+    console.warn('Gửi thông báo đặt hàng thất bại:', err);
+  }
 
   return {
     intent: 'place_order',
