@@ -14,7 +14,6 @@ import { colors, radius, spacing } from '../src/constants/theme';
 import { useCheckout } from '../src/context/CheckoutContext';
 import { PrimaryButton, SecondaryButton } from '../src/components/Button';
 import { EmptyState } from '../src/components/EmptyState';
-import { InvoiceModal } from '../src/components/InvoiceModal';
 import { formatMoney } from '../src/utils/format';
 import { Order } from '../src/types';
 
@@ -68,7 +67,6 @@ function getSteps(order: Order): StepItem[] {
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
   const { lastPlacedOrder } = useCheckout();
-  const [invoiceVisible, setInvoiceVisible] = useState(false);
 
   // Dữ liệu đơn vừa đặt (nếu có)
   const order = lastPlacedOrder;
@@ -231,14 +229,6 @@ export default function CheckoutSuccessScreen() {
           style={styles.primaryButton}
         />
 
-        {/* Invoice action */}
-        <SecondaryButton
-          title="Xem hóa đơn bán hàng"
-          icon="receipt-outline"
-          onPress={() => setInvoiceVisible(true)}
-          style={styles.secondaryButton}
-        />
-
         {/* Secondary action */}
         <SecondaryButton
           title="Tiếp tục mua sắm"
@@ -247,12 +237,6 @@ export default function CheckoutSuccessScreen() {
           style={styles.secondaryButton}
         />
       </ScrollView>
-
-      <InvoiceModal
-        visible={invoiceVisible}
-        onClose={() => setInvoiceVisible(false)}
-        order={order}
-      />
     </SafeAreaView>
   );
 }

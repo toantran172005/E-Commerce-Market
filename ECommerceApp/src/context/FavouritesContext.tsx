@@ -53,20 +53,17 @@ export function FavouritesProvider({
 
   const toggleFavourite = useCallback(
     (product: Product) => {
+      if (!user?.uid || user.isGuest) return;
       const exists = favourites.some((p) => p.id === product.id);
       if (exists) {
         setFavourites((prev) => prev.filter((p) => p.id !== product.id));
-        if (user?.uid) {
-          void FavouriteService.removeFavourite(user.uid, product.id);
-        }
+        void FavouriteService.removeFavourite(user.uid, product.id);
       } else {
         setFavourites((prev) => [product, ...prev]);
-        if (user?.uid) {
-          void FavouriteService.addFavourite(user.uid, product);
-        }
+        void FavouriteService.addFavourite(user.uid, product);
       }
     },
-    [favourites, user?.uid],
+    [favourites, user?.uid, user?.isGuest],
   );
 
   const reset = useCallback(() => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   View,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ScreenHeader, LoadingView, EmptyState } from '../src/components';
 import { colors, radius, spacing } from '../src/constants/theme';
+import { useAuth } from '../src/context/AuthContext';
 import { useCart } from '../src/context/CartContext';
 import { useCheckout } from '../src/context/CheckoutContext';
 import { useAddresses } from '../src/context/AddressesContext';
@@ -34,10 +35,26 @@ function getPaymentIcon(type: PaymentMethod['type']): keyof typeof Ionicons.glyp
 
 export default function CheckoutScreen() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const cart = useCart();
   const checkout = useCheckout();
   const addresses = useAddresses();
   const paymentMethods = usePaymentMethods();
+
+  const isGuestUser = !authLoading && (user?.isGuest || !user);
+
+  useEffect(() => {
+    if (isGuestUser) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để tiến hành đặt hàng.',
+        [
+          { text: 'Đăng nhập ngay', onPress: () => router.replace('/(auth)/login') },
+        ],
+        { cancelable: false },
+      );
+    }
+  }, [isGuestUser, router]);
 
   const [submitError, setSubmitError] = useState('');
   const [voucherCodeInput, setVoucherCodeInput] = useState('');
@@ -172,6 +189,21 @@ export default function CheckoutScreen() {
     selectedItems.length,
     router,
   ]);
+
+  if (isGuestUser) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <ScreenHeader title="Thanh toán" subtitle="Yêu cầu đăng nhập" />
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Yêu cầu đăng nhập"
+          subtitle="Vui lòng đăng nhập tài khoản để tiến hành đặt hàng."
+          actionLabel="Đăng nhập ngay"
+          onAction={() => router.replace('/(auth)/login')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   if (addresses.loading || paymentMethods.loading) {
     return <LoadingView label="Đang tải thông tin thanh toán..." />;
