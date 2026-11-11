@@ -214,14 +214,6 @@ export default function ProductDetailScreen() {
         right={
           <View style={styles.headerRight}>
             <Pressable
-              onPress={handleShare}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Chia sẻ sản phẩm"
-            >
-              <Ionicons name="share-social-outline" size={20} color={colors.dark} />
-            </Pressable>
-            <Pressable
               onPress={handleToggleFavourite}
               style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
               accessibilityRole="button"

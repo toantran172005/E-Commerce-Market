@@ -220,6 +220,7 @@ export interface AppNotification {
   message: string;
   createdAt: string;
   read: boolean;
+  orderId?: string;
   data?: { orderId?: string; productId?: string };
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppProviders } from '../src/context/AppProviders';
 import { useAuth } from '../src/context/AuthContext';
 import { colors } from '../src/constants/theme';
+import { FloatingChatButton, ChatBotModal } from '../src/components';
 
 /** Màn splash ngắn trong lúc khởi tạo auth state. */
 function SplashOverlay() {
@@ -24,6 +25,9 @@ function RootNavigator() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [isChatVisible, setIsChatVisible] = useState(false);
+
+  const isInAuthGroup = segments[0] === '(auth)';
 
   useEffect(() => {
     if (isLoading) return;
@@ -67,6 +71,16 @@ function RootNavigator() {
           }}
         />
       </Stack>
+
+      {!isInAuthGroup && !isLoading ? (
+        <>
+          <FloatingChatButton onPress={() => setIsChatVisible(true)} />
+          <ChatBotModal
+            visible={isChatVisible}
+            onClose={() => setIsChatVisible(false)}
+          />
+        </>
+      ) : null}
 
       {isLoading ? <SplashOverlay /> : null}
     </>

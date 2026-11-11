@@ -71,7 +71,8 @@ export const NotificationService = {
             message: data.message || 'Bạn có thông báo mới từ hệ thống.',
             createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
             read: Boolean(data.read),
-            data: data.data || {},
+            orderId: (data as any).orderId || data.data?.orderId,
+            data: data.data || ((data as any).orderId ? { orderId: (data as any).orderId } : {}),
           };
         });
       } else {
@@ -88,7 +89,8 @@ export const NotificationService = {
               message: data.message || 'Bạn có thông báo mới từ hệ thống.',
               createdAt: data.date ? String(data.date) : new Date().toISOString(),
               read: Boolean(data.isRead),
-              data: {},
+              orderId: (data as any).orderId,
+              data: (data as any).orderId ? { orderId: (data as any).orderId } : {},
             };
           });
         }
