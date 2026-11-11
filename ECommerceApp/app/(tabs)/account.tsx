@@ -100,20 +100,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
-  proBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-    marginTop: spacing.xs,
-  },
-  proBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.6,
-  },
   editButton: {
     width: 44,
     height: 44,
@@ -256,15 +242,16 @@ export default function AccountScreen() {
 
   const userName = user?.fullName || user?.displayName || 'Khách';
   const userEmail = user?.email || 'Đăng nhập để xem thông tin';
-  const isPro = Boolean(user && !user.isGuest);
 
   const orderSubtitle = ordersLoading
     ? 'Đang tải đơn hàng...'
     : ordersError
       ? `Lỗi: ${ordersError}`
-      : processingCount > 0
-        ? `${processingCount} đơn hàng đang xử lý`
-        : 'Chưa có đơn hàng';
+      : (orders ?? []).length === 0
+        ? 'Chưa có đơn hàng'
+        : processingCount > 0
+          ? `${(orders ?? []).length} đơn hàng (${processingCount} đang xử lý)`
+          : `${(orders ?? []).length} đơn hàng`;
 
   const cartSubtitle = `${totalItems} món đồ trong giỏ`;
 
@@ -373,12 +360,6 @@ export default function AccountScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{userName}</Text>
             <Text style={styles.profileEmail}>{userEmail}</Text>
-
-            {isPro ? (
-              <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>THÀNH VIÊN PRO</Text>
-              </View>
-            ) : null}
           </View>
 
           <Pressable

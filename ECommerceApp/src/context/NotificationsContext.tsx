@@ -12,6 +12,7 @@ import {
   CreateNotificationInput,
   NotificationService,
 } from '../services/notificationService';
+import { useAuth } from './AuthContext';
 
 interface NotificationsContextValue {
   notifications: AppNotification[];
@@ -30,18 +31,23 @@ export function NotificationsProvider({
   children,
   resetKey = 0,
 }: { children: ReactNode; resetKey?: number }) {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadNotifications = useCallback(async () => {
+    if (!user?.uid) {
+      setNotifications([]);
+      return;
+    }
     setLoading(true);
     try {
-      const data = await NotificationService.listNotifications();
+      const data = await NotificationService.listNotifications(user.uid);
       setNotifications(data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     void loadNotifications();
@@ -53,36 +59,35 @@ export function NotificationsProvider({
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
     try {
-      const updated = await NotificationService.markAsRead(id);
+      const updated = await NotificationService.markAsRead(id, user?.uid);
       setNotifications((prev) => prev.map((n) => (n.id === id ? updated : n)));
     } catch {
       // Giữ nguyên trạng thái đã đọc trên giao diện người dùng
     }
-  }, []);
+  }, [user?.uid]);
 
   const markAllAsRead = useCallback(async () => {
-    // Cập nhật lạc quan toàn bộ danh sách tức thì
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
-      const updated = await NotificationService.markAllAsRead();
+      const updated = await NotificationService.markAllAsRead(user?.uid);
       setNotifications(updated);
     } catch {
       // Giữ nguyên trạng thái đã đọc trên giao diện người dùng
     }
-  }, []);
+  }, [user?.uid]);
 
   const addNotification = useCallback(
-    async (input: CreateNotificationInput): Promise<AppNotification> => {
-      const created = await NotificationService.createNotification(input);
+    async (input: CreateNotificationInput) => {
+      const created = await NotificationService.createNotification(input, user?.uid);
       setNotifications((prev) => [created, ...prev]);
       return created;
     },
-    [],
+    [user?.uid],
   );
 
   const reset = useCallback(() => {
-    void loadNotifications();
-  }, [loadNotifications]);
+    setNotifications([]);
+  }, []);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -100,10 +105,23 @@ export function NotificationsProvider({
       addNotification,
       reset,
     }),
-    [notifications, unreadCount, loading, loadNotifications, markAsRead, markAllAsRead, addNotification, reset],
+    [
+      notifications,
+      unreadCount,
+      loading,
+      loadNotifications,
+      markAsRead,
+      markAllAsRead,
+      addNotification,
+      reset,
+    ],
   );
 
-  return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
+  return (
+    <NotificationsContext.Provider value={value}>
+      {children}
+    </NotificationsContext.Provider>
+  );
 }
 
 export function useNotifications(): NotificationsContextValue {

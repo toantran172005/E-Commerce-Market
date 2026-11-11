@@ -1,26 +1,25 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Voucher } from '../types';
-import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
-import { MOCK_VOUCHERS } from '../mock/vouchers';
+import { apiError, mapFirebaseError } from './http';
 import { computeVoucherDiscount } from '../utils/pricing';
 
 /**
- * Service quản lý và kiểm tra mã giảm giá (Vouchers) từ Cloud Firestore.
+ * Service quản lý và kiểm tra mã giảm giá (Vouchers) 100% từ Cloud Firestore.
  */
 export const VoucherService = {
-  /** Lấy danh sách toàn bộ vouchers khả dụng */
+  /** Lấy danh sách toàn bộ vouchers khả dụng từ Firestore */
   async listVouchers(): Promise<Voucher[]> {
-    if (IS_MOCK_MODE) return MOCK_VOUCHERS;
-
     try {
-      const snap = await getDocs(collection(db, 'vouchers'));
-      if (!snap.empty) {
-        return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Voucher, 'id'>) }));
+      let snap = await getDocs(collection(db, 'promos'));
+      if (snap.empty) {
+        snap = await getDocs(collection(db, 'vouchers'));
       }
-      return MOCK_VOUCHERS;
-    } catch {
-      return MOCK_VOUCHERS;
+      return snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<Voucher, 'id'>) }))
+        .filter((v) => v.isActive !== false);
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tải danh sách mã giảm giá từ Firestore.');
     }
   },
 
@@ -41,27 +40,24 @@ export const VoucherService = {
 
     let voucher: Voucher | null = null;
 
-    if (!IS_MOCK_MODE) {
-      try {
-        const snap = await getDoc(doc(db, 'vouchers', normalized));
-        if (snap.exists()) {
-          voucher = { id: snap.id, ...(snap.data() as Omit<Voucher, 'id'>) };
-        }
-      } catch {
-        // Fallback below
+    try {
+      let snap = await getDoc(doc(db, 'promos', normalized));
+      if (!snap.exists()) {
+        snap = await getDoc(doc(db, 'vouchers', normalized));
       }
-    }
-
-    if (!voucher) {
-      voucher = MOCK_VOUCHERS.find((v) => v.code === normalized) ?? null;
+      if (snap.exists()) {
+        voucher = { id: snap.id, ...(snap.data() as Omit<Voucher, 'id'>) };
+      }
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể xác thực mã giảm giá.');
     }
 
     if (!voucher) {
       apiError('VOUCHER_NOT_FOUND', `Mã giảm giá "${normalized}" không hợp lệ hoặc không tồn tại.`);
     }
 
-    // 1. Kiểm tra trạng thái kích hoạt
-    if (!voucher.isActive) {
+    // 1. Kiểm tra trạng thái kích hoạt (chỉ báo lỗi nếu có cờ isActive: false)
+    if (voucher.isActive === false) {
       apiError('VOUCHER_EXPIRED', `Mã giảm giá "${normalized}" đã hết hạn sử dụng.`);
     }
 
@@ -79,14 +75,15 @@ export const VoucherService = {
     }
 
     // 4. Kiểm tra giá trị đơn hàng tối thiểu
-    if (subtotal < voucher.minOrderValue) {
+    const minOrder = voucher.minOrderValue ?? 100000;
+    if (subtotal < minOrder) {
       apiError(
         'VOUCHER_MIN_ORDER_NOT_MET',
-        `Mã giảm giá không hợp lệ hoặc không đủ điều kiện áp dụng (Giá trị đơn hàng tối thiểu là ${voucher.minOrderValue.toLocaleString('vi-VN')}đ).`,
+        `Mã giảm giá không hợp lệ hoặc không đủ điều kiện áp dụng (Giá trị đơn hàng tối thiểu là ${minOrder.toLocaleString('vi-VN')}đ).`,
       );
     }
 
-    // 5. Kiểm tra danh mục áp dụng (nếu voucher có điều kiện ràng buộc danh mục)
+    // 5. Kiểm tra danh mục áp dụng
     if (voucher.applicableCategories && voucher.applicableCategories.length > 0) {
       if (cartCategoryIds && cartCategoryIds.length > 0) {
         const matched = cartCategoryIds.some((catId) =>
@@ -101,11 +98,12 @@ export const VoucherService = {
       }
     }
 
-    const discount = computeVoucherDiscount(voucher, subtotal, shippingFee);
+    if (voucher && (voucher as any).discountPercent && !voucher.value) {
+      voucher.type = 'percent';
+      voucher.value = (voucher as any).discountPercent;
+    }
 
-    return {
-      voucher,
-      discount,
-    };
+    const discount = computeVoucherDiscount(voucher, subtotal, shippingFee);
+    return { voucher, discount };
   },
 };

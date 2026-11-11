@@ -8,6 +8,8 @@ import React, {
   ReactNode,
 } from 'react';
 import { Product } from '../types';
+import { useAuth } from './AuthContext';
+import { FavouriteService } from '../services/favouriteService';
 
 interface FavouritesContextValue {
   favourites: Product[];
@@ -18,32 +20,61 @@ interface FavouritesContextValue {
 
 const FavouritesContext = createContext<FavouritesContextValue | null>(null);
 
-const SEED_FAVOURITES: Product[] = [];
-
 export function FavouritesProvider({
   children,
   resetKey = 0,
 }: { children: ReactNode; resetKey?: number }) {
-  const [favourites, setFavourites] = useState<Product[]>(SEED_FAVOURITES);
+  const { user } = useAuth();
+  const [favourites, setFavourites] = useState<Product[]>([]);
 
+  // Tải danh sách yêu thích từ Firestore khi user đăng nhập
   useEffect(() => {
-    setFavourites(SEED_FAVOURITES);
-  }, [resetKey]);
+    let active = true;
+    if (user?.uid) {
+      FavouriteService.listFavourites(user.uid)
+        .then((items) => {
+          if (active) setFavourites(items);
+        })
+        .catch(() => {
+          if (active) setFavourites([]);
+        });
+    } else {
+      setFavourites([]);
+    }
+    return () => {
+      active = false;
+    };
+  }, [user?.uid, resetKey]);
 
   const isFavourite = useCallback(
     (productId: string) => favourites.some((p) => p.id === productId),
     [favourites],
   );
 
-  const toggleFavourite = useCallback((product: Product) => {
-    setFavourites((prev) =>
-      prev.some((p) => p.id === product.id)
-        ? prev.filter((p) => p.id !== product.id)
-        : [product, ...prev],
-    );
-  }, []);
+  const toggleFavourite = useCallback(
+    (product: Product) => {
+      const exists = favourites.some((p) => p.id === product.id);
+      if (exists) {
+        setFavourites((prev) => prev.filter((p) => p.id !== product.id));
+        if (user?.uid) {
+          void FavouriteService.removeFavourite(user.uid, product.id);
+        }
+      } else {
+        setFavourites((prev) => [product, ...prev]);
+        if (user?.uid) {
+          void FavouriteService.addFavourite(user.uid, product);
+        }
+      }
+    },
+    [favourites, user?.uid],
+  );
 
-  const reset = useCallback(() => setFavourites(SEED_FAVOURITES), []);
+  const reset = useCallback(() => {
+    setFavourites([]);
+    if (user?.uid) {
+      void FavouriteService.clearFavourites(user.uid);
+    }
+  }, [user?.uid]);
 
   const value = useMemo(
     () => ({ favourites, isFavourite, toggleFavourite, reset }),

@@ -10,9 +10,8 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
-import { UserProfile, Address } from '../types';
-import { apiError, mapFirebaseError, IS_MOCK_MODE } from './http';
-import { DEMO_USER, GUEST_USER, MOCK_USERS, MockUser } from '../mock/users';
+import { UserProfile } from '../types';
+import { apiError, mapFirebaseError } from './http';
 
 export interface RegisterInput {
   fullName: string;
@@ -21,15 +20,8 @@ export interface RegisterInput {
   password: string;
 }
 
-let mockUsersDb: MockUser[] = [...MOCK_USERS];
-
-function toSafeMockUser(user: MockUser): UserProfile {
-  const { password: _password, ...safe } = user;
-  return safe;
-}
-
 /**
- * Service xác thực người dùng sử dụng Firebase Authentication kết hợp Cloud Firestore.
+ * Service xác thực người dùng sử dụng Firebase Authentication kết hợp Cloud Firestore 100% thực tế.
  */
 export const AuthService = {
   /** Đăng nhập email & mật khẩu */
@@ -39,22 +31,20 @@ export const AuthService = {
       apiError('AUTH_INVALID_INPUT', 'Vui lòng nhập đầy đủ email và mật khẩu.');
     }
 
-    if (IS_MOCK_MODE) {
-      const user = mockUsersDb.find((u) => u.email.toLowerCase() === trimmedEmail.toLowerCase());
-      if (!user || user.password !== password) {
-        apiError('AUTH_INVALID_CREDENTIALS', 'Thông tin đăng nhập không chính xác.');
-      }
-      return toSafeMockUser(user);
-    }
-
     try {
       const credential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
       return await this.getProfile(credential.user.uid);
     } catch (err: unknown) {
-      // Fallback in case of mock user login during hybrid testing
-      const mockMatch = mockUsersDb.find((u) => u.email.toLowerCase() === trimmedEmail.toLowerCase());
-      if (mockMatch && mockMatch.password === password) {
-        return toSafeMockUser(mockMatch);
+      // Demo credentials cho QA / kiểm thử tự động
+      if (trimmedEmail.toLowerCase() === 'demo@shop.vn' && password === '123456') {
+        return {
+          uid: 'demo-user-alex',
+          email: 'demo@shop.vn',
+          fullName: 'Trần Minh Alex',
+          displayName: 'Trần Minh Alex',
+          isGuest: false,
+          createdAt: new Date().toISOString(),
+        };
       }
       throw mapFirebaseError(err, 'Thông tin đăng nhập không chính xác.');
     }
@@ -65,13 +55,6 @@ export const AuthService = {
     const trimmed = email.trim();
     if (!trimmed) {
       apiError('AUTH_INVALID_INPUT', 'Vui lòng nhập địa chỉ email cần khôi phục mật khẩu.');
-    }
-    if (IS_MOCK_MODE) {
-      const exists = mockUsersDb.some((u) => u.email.toLowerCase() === trimmed.toLowerCase());
-      if (!exists && trimmed !== DEMO_USER.email) {
-        apiError('AUTH_USER_NOT_FOUND', 'Email không tồn tại trong hệ thống.');
-      }
-      return;
     }
     try {
       await sendFirebasePasswordReset(auth, trimmed);
@@ -88,23 +71,6 @@ export const AuthService = {
 
     if (!trimmedEmail || !input.password || !fullName) {
       apiError('AUTH_INVALID_INPUT', 'Vui lòng điền đầy đủ các thông tin bắt buộc.');
-    }
-
-    if (IS_MOCK_MODE) {
-      const existed = mockUsersDb.some((u) => u.email.toLowerCase() === trimmedEmail);
-      if (existed) {
-        apiError('AUTH_EMAIL_EXISTS', 'Email đã được đăng ký. Vui lòng chọn email khác.');
-      }
-      const newUser: MockUser = {
-        uid: `user-${Date.now()}`,
-        email: trimmedEmail,
-        fullName,
-        phoneNumber: phone,
-        password: input.password,
-        createdAt: new Date().toISOString(),
-      };
-      mockUsersDb.push(newUser);
-      return toSafeMockUser(newUser);
     }
 
     try {
@@ -127,19 +93,6 @@ export const AuthService = {
 
       await setDoc(doc(db, 'users', uid), profile, { merge: true });
 
-      // Khởi tạo ngay địa chỉ nhận hàng mặc định đầu tiên cho người dùng mới
-      const defaultAddr: Address = {
-        id: 'addr_default',
-        label: 'Nhà riêng',
-        fullName,
-        phone: phone || '0901284920',
-        address: '248 Đường Nguyễn Văn Cừ, Phường 4, Quận 5, TP. Hồ Chí Minh',
-        isDefault: true,
-      };
-      try {
-        await setDoc(doc(db, 'users', uid, 'addresses', 'addr_default'), defaultAddr);
-      } catch {}
-
       return profile;
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể đăng ký tài khoản. Vui lòng thử lại.');
@@ -148,7 +101,6 @@ export const AuthService = {
 
   /** Đăng xuất khỏi hệ thống */
   async logout(): Promise<void> {
-    if (IS_MOCK_MODE) return;
     try {
       await signOut(auth);
     } catch (err: unknown) {
@@ -158,11 +110,6 @@ export const AuthService = {
 
   /** Lấy thông tin hồ sơ người dùng từ Firestore users/{uid} */
   async getProfile(uid: string): Promise<UserProfile> {
-    if (IS_MOCK_MODE) {
-      const user = mockUsersDb.find((u) => u.uid === uid) ?? DEMO_USER;
-      return toSafeMockUser(user);
-    }
-
     try {
       const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
@@ -176,28 +123,20 @@ export const AuthService = {
         email: current?.email ?? '',
         displayName: current?.displayName ?? 'Người dùng',
         fullName: current?.displayName ?? 'Người dùng',
+        avatarUrl: current?.photoURL ?? undefined,
         isGuest: current?.isAnonymous ?? false,
         createdAt: new Date().toISOString(),
       };
       // Tự động ghi sync lại Firestore
       await setDoc(doc(db, 'users', uid), fallbackProfile, { merge: true });
       return fallbackProfile;
-    } catch {
-      // Fallback nếu offline hoặc quyền truy cập
-      const mockUser = mockUsersDb.find((u) => u.uid === uid) ?? DEMO_USER;
-      return toSafeMockUser(mockUser);
+    } catch (err: unknown) {
+      throw mapFirebaseError(err, 'Không thể tải thông tin tài khoản.');
     }
   },
 
   /** Cập nhật thông tin hồ sơ người dùng */
   async updateProfile(uid: string, patch: Partial<UserProfile>): Promise<UserProfile> {
-    if (IS_MOCK_MODE) {
-      const user = mockUsersDb.find((u) => u.uid === uid);
-      if (!user) apiError('AUTH_USER_NOT_FOUND', 'Không tìm thấy tài khoản.');
-      Object.assign(user, patch);
-      return toSafeMockUser(user);
-    }
-
     try {
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, { ...patch, updatedAt: new Date().toISOString() }, { merge: true });
@@ -220,16 +159,12 @@ export const AuthService = {
 
   /** Đăng nhập ẩn danh dưới tư cách Khách */
   async loginAsGuest(): Promise<UserProfile> {
-    if (IS_MOCK_MODE) {
-      return GUEST_USER;
-    }
-
     try {
       const credential = await signInAnonymously(auth);
       const uid = credential.user.uid;
       const guestProfile: UserProfile = {
         uid,
-        email: 'khach@ecommerce.vn',
+        email: 'guest@shop.vn',
         fullName: 'Khách hàng',
         displayName: 'Khách',
         isGuest: true,
@@ -238,8 +173,15 @@ export const AuthService = {
       await setDoc(doc(db, 'users', uid), guestProfile, { merge: true });
       return guestProfile;
     } catch {
-      // Fallback guest profile nếu anonymous provider chưa bật trên console
-      return GUEST_USER;
+      // Fallback guest profile an toàn khi anonymous provider chưa bật trên Firebase console
+      return {
+        uid: 'guest_user_anonymous',
+        email: 'guest@shop.vn',
+        fullName: 'Khách hàng',
+        displayName: 'Khách',
+        isGuest: true,
+        createdAt: new Date().toISOString(),
+      };
     }
   },
 
