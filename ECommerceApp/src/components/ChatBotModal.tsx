@@ -229,7 +229,7 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
 
       if (action.type === 'add_address') {
         onClose();
-        router.push('/(tabs)/profile');
+        router.push('/shipping-address');
         return;
       }
 
@@ -352,7 +352,15 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
               {item.products.map((product) => {
                 const isFav = favourites.isFavourite(product.id);
                 return (
-                  <View key={product.id} style={styles.productCard}>
+                  <TouchableOpacity
+                    key={product.id}
+                    style={styles.productCard}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      onClose();
+                      router.push(`/product/${product.id}`);
+                    }}
+                  >
                     {product.imageUrl ? (
                       <Image
                         source={{ uri: product.imageUrl }}
@@ -374,7 +382,10 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
                     <View style={styles.productActionsRow}>
                       <TouchableOpacity
                         style={styles.addToCartButton}
-                        onPress={() => handleProductAddToCart(product)}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleProductAddToCart(product);
+                        }}
                         activeOpacity={0.7}
                       >
                         <Ionicons name="cart-outline" size={13} color={BRAND.primaryDark} />
@@ -383,7 +394,10 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
 
                       <TouchableOpacity
                         style={styles.favouriteButton}
-                        onPress={() => handleProductToggleFavourite(product)}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleProductToggleFavourite(product);
+                        }}
                         activeOpacity={0.7}
                       >
                         <Ionicons
@@ -393,7 +407,7 @@ export default function ChatBotModal({ visible, onClose }: ChatBotModalProps) {
                         />
                       </TouchableOpacity>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>
