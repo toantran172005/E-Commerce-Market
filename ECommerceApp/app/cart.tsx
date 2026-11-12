@@ -63,21 +63,6 @@ export default function CartScreen() {
     }
   }, [isGuest, router]);
 
-  if (isGuest) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScreenHeader title="Giỏ hàng" subtitle="Yêu cầu đăng nhập" />
-        <EmptyState
-          icon="lock-closed-outline"
-          title="Yêu cầu đăng nhập"
-          subtitle="Vui lòng đăng nhập để xem và quản lý giỏ hàng của bạn."
-          actionLabel="Đăng nhập ngay"
-          onAction={() => router.replace('/(auth)/login')}
-        />
-      </SafeAreaView>
-    );
-  }
-
   // Nếu chưa chọn sản phẩm nào thì không tính phí ship/thuế để tránh hiển thị sai.
   const displayTotals =
     selectedCount === 0
@@ -369,6 +354,21 @@ export default function CartScreen() {
     promoSuccess,
     voucher,
   ]);
+
+  if (isGuest) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScreenHeader title="Giỏ hàng" subtitle="Yêu cầu đăng nhập" />
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Yêu cầu đăng nhập"
+          subtitle="Vui lòng đăng nhập để xem và quản lý giỏ hàng của bạn."
+          actionLabel="Đăng nhập ngay"
+          onAction={() => router.replace('/(auth)/login')}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
