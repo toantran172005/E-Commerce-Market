@@ -69,15 +69,125 @@ const STANDARD_SHIPPING_METHODS: ShippingMethod[] = [
   },
 ];
 
+function normalizeCategoryText(str?: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .replace(/^cat-/, '')
+    .replace(/[&/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchesProductCategory(product: Product, targetCategory: string): boolean {
+  if (!targetCategory) return true;
+  const targetNorm = normalizeCategoryText(targetCategory);
+  if (!targetNorm) return true;
+
+  const rawCat = (product.category ?? '');
+  const rawCatId = ((product as any).categoryId ?? '');
+
+  if (rawCat === targetCategory || rawCatId === targetCategory) return true;
+
+  const pCatNorm = normalizeCategoryText(rawCat);
+  const pCatIdNorm = normalizeCategoryText(rawCatId);
+
+  if (pCatIdNorm === targetNorm || pCatNorm === targetNorm) return true;
+
+  // Stem comparison (e.g. "laptops" vs "laptop", "phones" vs "phone")
+  const targetStem = targetNorm.replace(/s$/, '');
+  const pCatStem = pCatNorm.replace(/s$/, '');
+  const pCatIdStem = pCatIdNorm.replace(/s$/, '');
+
+  if (pCatIdStem === targetStem || pCatStem === targetStem) return true;
+  if (pCatNorm.includes(targetStem) || targetNorm.includes(pCatStem)) return true;
+
+  // Common semantic mappings
+  if (targetStem === 'laptop') {
+    if (pCatNorm.includes('may tinh bang') || pCatIdNorm.includes('tablet')) return false;
+    if (pCatNorm.includes('laptop') || pCatIdNorm.includes('laptop') || pCatNorm.includes('may tinh')) {
+      return true;
+    }
+  }
+  if (targetStem === 'phone' && (pCatNorm.includes('dien thoai') || pCatIdNorm.includes('phone'))) {
+    return true;
+  }
+  if (targetStem === 'tablet' && (pCatNorm.includes('may tinh bang') || pCatIdNorm.includes('tablet'))) {
+    return true;
+  }
+  if (targetStem === 'audio' && (pCatNorm.includes('am thanh') || pCatNorm.includes('tai nghe') || pCatIdNorm.includes('audio'))) {
+    return true;
+  }
+  if (targetStem === 'watche' || targetStem === 'watch') {
+    if (pCatNorm.includes('dong ho') || pCatIdNorm.includes('watch')) return true;
+  }
+  if (targetStem === 'accessorie' || targetStem === 'accessory') {
+    if (pCatNorm.includes('phu kien') || pCatIdNorm.includes('accessories')) return true;
+  }
+  if (targetStem === 'gaming') {
+    if (pCatNorm.includes('gaming') || pCatIdNorm.includes('gaming') || normalizeCategoryText(product.name).includes('gaming')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export const CORE_STORE_CATEGORIES: Category[] = [
+  { id: 'phones', name: 'Điện thoại', icon: 'phone-portrait-outline' },
+  { id: 'laptops', name: 'Laptop', icon: 'laptop-outline' },
+  { id: 'tablets', name: 'Máy tính bảng', icon: 'tablet-portrait-outline' },
+  { id: 'audio', name: 'Âm thanh', icon: 'headset-outline' },
+  { id: 'watches', name: 'Đồng hồ', icon: 'watch-outline' },
+  { id: 'accessories', name: 'Phụ kiện', icon: 'hardware-chip-outline' },
+  { id: 'gaming', name: 'Gaming', icon: 'game-controller-outline' },
+];
+
 /**
  * Service quản lý danh mục, thương hiệu, sản phẩm và đánh giá 100% từ Cloud Firestore.
  */
 export const CatalogService = {
+  /** Đồng bộ danh mục Firestore về 7 danh mục cốt lõi chuẩn */
+  async syncCoreCategories(): Promise<void> {
+    try {
+      const snap = await getDocs(collection(db, 'categories'));
+      const coreIds = new Set(CORE_STORE_CATEGORIES.map((c) => c.id));
+      for (const d of snap.docs) {
+        if (!coreIds.has(d.id)) {
+          await deleteDoc(doc(db, 'categories', d.id));
+        }
+      }
+      for (const cat of CORE_STORE_CATEGORIES) {
+        await setDoc(doc(db, 'categories', cat.id), {
+          name: cat.name,
+          icon: cat.icon,
+        });
+      }
+    } catch (err: unknown) {
+      console.warn('Sync core categories failed:', err);
+    }
+  },
+
   /** Lấy danh sách toàn bộ danh mục ngành hàng từ Firestore */
   async getCategories(): Promise<Category[]> {
     try {
       const snap = await getDocs(collection(db, 'categories'));
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
+      if (snap.empty) {
+        await this.syncCoreCategories();
+        return CORE_STORE_CATEGORIES;
+      }
+      const allCats = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, 'id'>) }));
+      // Sắp xếp ưu tiên theo thứ tự cốt lõi
+      const orderMap = new Map(CORE_STORE_CATEGORIES.map((c, idx) => [c.id, idx]));
+      return allCats.sort((a, b) => {
+        const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 99;
+        const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 99;
+        return orderA - orderB;
+      });
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể tải danh mục sản phẩm từ Firestore.');
     }
@@ -139,14 +249,13 @@ export const CatalogService = {
       }
 
       // 2. Danh mục đơn lẻ
-      if (productQuery.category && p.category !== productQuery.category && (p as any).categoryId !== productQuery.category) {
+      if (productQuery.category && !matchesProductCategory(p, productQuery.category)) {
         return false;
       }
 
       // 3. Nhiều danh mục
       if (productQuery.categories && productQuery.categories.length > 0) {
-        const matchCat = productQuery.categories.includes(p.category) ||
-          productQuery.categories.includes((p as any).categoryId ?? '');
+        const matchCat = productQuery.categories.some((cat) => matchesProductCategory(p, cat));
         if (!matchCat) return false;
       }
 
