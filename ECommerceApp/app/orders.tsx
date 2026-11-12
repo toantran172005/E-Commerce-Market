@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   FlatList,
   Image,
   Pressable,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, radius, spacing } from '../src/constants/theme';
 import { ScreenHeader } from '../src/components/ScreenHeader';
 import { EmptyState } from '../src/components/EmptyState';
@@ -19,10 +20,11 @@ import { LoadingView } from '../src/components/LoadingView';
 import { ErrorView } from '../src/components/ErrorView';
 import { ConfirmSheet } from '../src/components/ConfirmSheet';
 import { Toast } from '../src/components/Toast';
+import { ReviewModal } from '../src/components/ReviewModal';
 import { useOrders } from '../src/context/OrdersContext';
 import { useNotifications } from '../src/context/NotificationsContext';
 import { formatDate, formatMoney } from '../src/utils/format';
-import { Order, OrderStatus } from '../src/types';
+import { Order, OrderItem, OrderStatus } from '../src/types';
 
 /* ------------------------------- Types ------------------------------- */
 
@@ -68,8 +70,29 @@ const EMPTY_COPY: Record<TabKey, { title: string; text: string }> = {
 
 export default function MyOrdersScreen() {
   const router = useRouter();
-  const { orders, loading, error, loadOrders, cancelOrder, reorder } = useOrders();
+  const { fromSuccess } = useLocalSearchParams<{ fromSuccess?: string }>();
+  const { orders, loading, error, loadOrders, cancelOrder, markItemReviewed } = useOrders();
   const { loadNotifications } = useNotifications();
+
+  const handleBack = useCallback(() => {
+    if (fromSuccess === '1' || fromSuccess === 'true') {
+      router.replace('/(tabs)/home');
+      return true;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)/home');
+    }
+    return true;
+  }, [fromSuccess, router]);
+
+  useEffect(() => {
+    if (fromSuccess === '1' || fromSuccess === 'true') {
+      const sub = BackHandler.addEventListener('hardwareBackPress', handleBack);
+      return () => sub.remove();
+    }
+  }, [fromSuccess, handleBack]);
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +101,11 @@ export default function MyOrdersScreen() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
 
+  // State cho Modal đánh giá sản phẩm theo từng card Shopee
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewTargetItem, setReviewTargetItem] = useState<OrderItem | null>(null);
+  const [reviewTargetOrderId, setReviewTargetOrderId] = useState<string>('');
+
   const filteredOrders = useMemo(() => {
     if (activeTab === 'all') return orders;
     if (activeTab === 'processing') {
@@ -85,6 +113,23 @@ export default function MyOrdersScreen() {
     }
     return orders.filter((order) => order.status === activeTab);
   }, [orders, activeTab]);
+
+  // Tách từng sản phẩm trong các đơn hàng "Đã giao" thành từng card độc lập (Shopee style)
+  const deliveredItems = useMemo(() => {
+    const list: { order: Order; item: OrderItem; uniqueKey: string }[] = [];
+    orders
+      .filter((o) => o.status === 'delivered')
+      .forEach((order) => {
+        order.items.forEach((item, idx) => {
+          list.push({
+            order,
+            item,
+            uniqueKey: `${order.id}-${item.productId}-${idx}`,
+          });
+        });
+      });
+    return list;
+  }, [orders]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -127,23 +172,32 @@ export default function MyOrdersScreen() {
     }
   }, [cancelTarget, cancelOrder, loadNotifications]);
 
-  const handleReorder = useCallback(
-    async (order: Order) => {
-      try {
-        await reorder(order.id);
-        setToastMessage('Đã thêm sản phẩm vào giỏ hàng');
-        setToastVisible(true);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'Không thể đặt lại đơn hàng.';
-        Alert.alert('Lỗi', message);
-      }
-    },
-    [reorder],
-  );
-
-  const handleRate = useCallback((order: Order) => {
-    Alert.alert('Đánh giá', `Chức năng đánh giá cho đơn ${order.id} sẽ sớm ra mắt.`);
+  const handleRateProduct = useCallback((orderId: string, item: OrderItem) => {
+    setReviewTargetOrderId(orderId);
+    setReviewTargetItem(item);
+    setReviewModalVisible(true);
   }, []);
+
+  const handleViewReview = useCallback((_orderId: string, item: OrderItem) => {
+    router.push({
+      pathname: '/product/[id]',
+      params: { id: item.productId },
+    });
+  }, [router]);
+
+  const handleReviewSuccess = useCallback(
+    (msg: string, reviewedProductId?: string) => {
+      const prodId = reviewedProductId || reviewTargetItem?.productId;
+      if (reviewTargetOrderId && prodId) {
+        markItemReviewed(reviewTargetOrderId, prodId);
+      }
+      setToastMessage(msg);
+      setToastVisible(true);
+      setReviewModalVisible(false);
+      void loadOrders();
+    },
+    [reviewTargetOrderId, reviewTargetItem, markItemReviewed, loadOrders],
+  );
 
   const goShopping = useCallback(() => {
     router.replace('/(tabs)/home');
@@ -232,57 +286,108 @@ export default function MyOrdersScreen() {
             )}
 
             {item.status === 'delivered' && (
-              <>
-                <Pressable
-                  onPress={() => handleReorder(item)}
-                  style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.btnPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Đặt lại đơn hàng"
-                >
-                  <Ionicons name="repeat-outline" size={16} color={colors.white} />
-                  <Text style={styles.btnPrimaryText}>Đặt lại</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => handleRate(item)}
-                  style={({ pressed }) => [styles.btn, styles.btnOutline, pressed && styles.btnPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Đánh giá đơn hàng"
-                >
-                  <Ionicons name="star-outline" size={16} color={colors.dark} />
-                  <Text style={styles.btnOutlineText}>Đánh giá</Text>
-                </Pressable>
-              </>
+              <Pressable
+                onPress={() => openOrderDetail(item.id)}
+                style={({ pressed }) => [styles.btn, styles.btnOutline, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Xem chi tiết đơn hàng"
+              >
+                <Ionicons name="document-text-outline" size={16} color={colors.dark} />
+                <Text style={styles.btnOutlineText}>Chi tiết</Text>
+              </Pressable>
             )}
 
             {item.status === 'cancelled' && (
-              <>
-                <Pressable
-                  onPress={() => handleReorder(item)}
-                  style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.btnPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mua lại"
-                >
-                  <Ionicons name="cart-outline" size={16} color={colors.white} />
-                  <Text style={styles.btnPrimaryText}>Mua lại</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => openOrderDetail(item.id)}
-                  style={({ pressed }) => [styles.btn, styles.btnOutline, pressed && styles.btnPressed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Xem chi tiết đơn hàng"
-                >
-                  <Ionicons name="document-text-outline" size={16} color={colors.dark} />
-                  <Text style={styles.btnOutlineText}>Chi tiết</Text>
-                </Pressable>
-              </>
+              <Pressable
+                onPress={() => openOrderDetail(item.id)}
+                style={({ pressed }) => [styles.btn, styles.btnOutline, pressed && styles.btnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Xem chi tiết đơn hàng"
+              >
+                <Ionicons name="document-text-outline" size={16} color={colors.dark} />
+                <Text style={styles.btnOutlineText}>Chi tiết</Text>
+              </Pressable>
             )}
           </View>
         </View>
       );
     },
-    [handleCancelOrder, handleReorder, handleRate, handleTrackOrder, openOrderDetail],
+    [handleCancelOrder, handleTrackOrder, openOrderDetail],
+  );
+
+  // Render từng sản phẩm tách biệt khi ở tab "Đã giao" (Shopee style)
+  const renderDeliveredItem = useCallback(
+    ({ item: entry }: { item: { order: Order; item: OrderItem; uniqueKey: string } }) => {
+      const { order, item: prod } = entry;
+      const isReviewed = Boolean(order.reviewedItemIds?.includes(prod.productId));
+
+      return (
+        <View style={styles.card}>
+          {/* Header Shopee style */}
+          <View style={styles.cardHeader}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.orderCode}>#{order.id}</Text>
+              <Text style={styles.orderMeta}>{formatDate(order.createdAt)}</Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: colors.successSoft }]}>
+              <Text style={[styles.badgeText, { color: colors.success }]}>Đã giao</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Chi tiết sản phẩm */}
+          <View style={styles.deliveredProdRow}>
+            <Image source={{ uri: prod.imageUrl }} style={styles.deliveredThumb} resizeMode="contain" />
+            <View style={styles.deliveredProdInfo}>
+              <Text style={styles.productName} numberOfLines={2}>
+                {prod.name}
+              </Text>
+              {prod.variantName ? (
+                <Text style={styles.variantTag}>Phân loại: {prod.variantName}</Text>
+              ) : null}
+              <View style={styles.priceRow}>
+                <Text style={styles.priceText}>{formatMoney(prod.price)}</Text>
+                <Text style={styles.qtyText}>x{prod.quantity}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Hàng hành động */}
+          <View style={styles.actionsRow}>
+            {isReviewed ? (
+              <View style={styles.reviewedGroup}>
+                <View style={styles.reviewedBadge}>
+                  <Ionicons name="checkmark-circle" size={15} color={colors.success} />
+                  <Text style={styles.reviewedBadgeText}>Đã đánh giá</Text>
+                </View>
+                <Pressable
+                  onPress={() => handleViewReview(order.id, prod)}
+                  style={({ pressed }) => [styles.btn, styles.btnOutline, pressed && styles.btnPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Xem lại đánh giá"
+                >
+                  <Text style={styles.btnOutlineText}>Xem đánh giá</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => handleRateProduct(order.id, prod)}
+                style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.btnPressed, { flex: 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Đánh giá sản phẩm"
+              >
+                <Ionicons name="star" size={16} color={colors.white} />
+                <Text style={styles.btnPrimaryText}>Đánh giá</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      );
+    },
+    [handleRateProduct, handleViewReview],
   );
 
   const renderEmpty = useCallback(() => {
@@ -316,12 +421,17 @@ export default function MyOrdersScreen() {
     );
   }
 
+  const itemsCountText =
+    activeTab === 'delivered'
+      ? `${deliveredItems.length} sản phẩm`
+      : `${filteredOrders.length} đơn hàng`;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader
         title="Đơn hàng của tôi"
-        subtitle={`${filteredOrders.length} ${filteredOrders.length > 1 ? 'đơn hàng' : 'đơn hàng'}`}
-        onBack={() => router.back()}
+        subtitle={itemsCountText}
+        onBack={handleBack}
       />
 
       {/* Bộ lọc trạng thái */}
@@ -350,13 +460,14 @@ export default function MyOrdersScreen() {
       </View>
 
       <FlatList
-        data={filteredOrders}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        data={activeTab === 'delivered' ? (deliveredItems as any) : filteredOrders}
+        keyExtractor={(item: any) => (activeTab === 'delivered' ? item.uniqueKey : item.id)}
+        renderItem={activeTab === 'delivered' ? (renderDeliveredItem as any) : renderItem}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
-          filteredOrders.length === 0 && styles.listContentEmpty,
+          (activeTab === 'delivered' ? deliveredItems.length === 0 : filteredOrders.length === 0) &&
+            styles.listContentEmpty,
         ]}
         ListEmptyComponent={renderEmpty}
         refreshControl={
@@ -367,6 +478,16 @@ export default function MyOrdersScreen() {
             colors={[colors.primary]}
           />
         }
+      />
+
+      {/* Modal đánh giá sản phẩm */}
+      <ReviewModal
+        visible={reviewModalVisible}
+        onClose={() => setReviewModalVisible(false)}
+        item={reviewTargetItem}
+        orderId={reviewTargetOrderId}
+        reviewedItemIds={orders.find((o) => o.id === reviewTargetOrderId)?.reviewedItemIds || []}
+        onSuccess={handleReviewSuccess}
       />
 
       {/* Xác nhận huỷ đơn */}
@@ -578,5 +699,60 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: colors.danger,
+  },
+  deliveredProdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deliveredThumb: {
+    width: 68,
+    height: 68,
+    borderRadius: radius.md,
+    backgroundColor: colors.border,
+  },
+  deliveredProdInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  variantTag: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  priceText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  qtyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  reviewedGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  reviewedBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.success,
   },
 });

@@ -61,7 +61,7 @@ export function ProductReviewsList({ reviews, rating = 5.0, reviewCount = 0 }: P
                 </View>
               </View>
 
-              <Text style={styles.reviewComment}>{rev.content}</Text>
+              <Text style={styles.reviewComment}>{rev.comment}</Text>
 
               {rev.images && rev.images.length > 0 && (
                 <View style={styles.reviewPhotosRow}>

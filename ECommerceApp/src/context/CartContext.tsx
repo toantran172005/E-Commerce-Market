@@ -207,12 +207,12 @@ export function CartProvider({
   const currentItems = isGuest ? [] : items;
 
   const totalItems = useMemo(
-    () => (isGuest ? 0 : items.reduce((sum, item) => sum + item.quantity, 0)),
+    () => (isGuest ? 0 : new Set(items.map((item) => item.product?.id ?? item.id)).size),
     [isGuest, items],
   );
 
   const selectedCount = useMemo(
-    () => (isGuest ? 0 : items.filter((i) => i.selected).reduce((sum, item) => sum + item.quantity, 0)),
+    () => (isGuest ? 0 : new Set(items.filter((i) => i.selected).map((item) => item.product?.id ?? item.id)).size),
     [isGuest, items],
   );
 

@@ -131,7 +131,25 @@ export interface Order {
   paymentStatus?: 'paid' | 'pending' | 'failed';
   discountAmount?: number;
   recipientName?: string;
+  reviewedItemIds?: string[];
+  nextStatusAt?: number | null;
+  updatedAt?: number | string;
 }
+
+export interface Review {
+  id: string;
+  productId: string;
+  orderId?: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  rating: number;
+  comment: string;
+  images?: string[];
+  createdAt: number | string;
+}
+
+export type Rating = Review;
 
 export interface Category {
   id: string;
@@ -144,19 +162,6 @@ export interface Brand {
   name: string;
   /** Chữ viết tắt hiển thị thay logo. */
   shortName: string;
-}
-
-export interface Review {
-  id: string;
-  productId: string;
-  userId: string;
-  userName: string;
-  rating: number;
-  content: string;
-  createdAt: string;
-  images?: string[];
-  userAvatar?: string;
-  verifiedPurchase?: boolean;
 }
 
 export type VoucherType = 'percent' | 'fixed' | 'freeShip';

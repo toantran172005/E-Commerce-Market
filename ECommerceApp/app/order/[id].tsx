@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   Image,
   Pressable,
   ScrollView,
@@ -20,7 +21,6 @@ import {
   SecondaryButton,
   ScreenHeader,
   Toast,
-  InvoiceModal,
   ReviewModal,
 } from '../../src/components';
 import { colors, radius, spacing } from '../../src/constants/theme';
@@ -68,10 +68,33 @@ function formatItemCount(count: number): string {
 
 export default function OrderDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, fromSuccess } = useLocalSearchParams<{ id?: string; fromSuccess?: string }>();
   const orderId = id ?? '';
 
-  const { orders, loading, loadOrders, cancelOrder } = useOrders();
+  const handleBack = useCallback(() => {
+    if (fromSuccess === '1' || fromSuccess === 'true') {
+      router.replace({
+        pathname: '/orders',
+        params: { fromSuccess: '1' },
+      });
+      return true;
+    }
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/orders');
+    }
+    return true;
+  }, [fromSuccess, router]);
+
+  useEffect(() => {
+    if (fromSuccess === '1' || fromSuccess === 'true') {
+      const sub = BackHandler.addEventListener('hardwareBackPress', handleBack);
+      return () => sub.remove();
+    }
+  }, [fromSuccess, handleBack]);
+
+  const { orders, loading, loadOrders, cancelOrder, markItemReviewed } = useOrders();
   const { loadNotifications } = useNotifications();
   const order = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
 
@@ -79,8 +102,26 @@ export default function OrderDetailScreen() {
   const [canceling, setCanceling] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [invoiceVisible, setInvoiceVisible] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
+
+  const reviewedItemIds = useMemo(() => order?.reviewedItemIds || [], [order?.reviewedItemIds]);
+  const unreviewedItems = useMemo(
+    () => order?.items?.filter((it) => !reviewedItemIds.includes(it.productId)) || [],
+    [order?.items, reviewedItemIds],
+  );
+  const allItemsReviewed =
+    Boolean(order && order.status === 'delivered' && order.items.length > 0 && unreviewedItems.length === 0);
+
+  const handleReviewSuccess = useCallback(
+    (msg: string, reviewedProductId?: string) => {
+      if (order && reviewedProductId) {
+        markItemReviewed(order.id, reviewedProductId);
+      }
+      showToast(msg);
+      void loadOrders();
+    },
+    [order, markItemReviewed, loadOrders],
+  );
 
   const itemCount = useMemo(
     () => (order ? order.items.reduce((sum, item) => sum + item.quantity, 0) : 0),
@@ -134,10 +175,6 @@ export default function OrderDetailScreen() {
     router.push('/payment-method');
   };
 
-  const handleInvoice = () => {
-    setInvoiceVisible(true);
-  };
-
   if (loading) {
     return <LoadingView label="Đang tải đơn hàng..." />;
   }
@@ -158,6 +195,7 @@ export default function OrderDetailScreen() {
       <ScreenHeader
         title={`#${order.id}`}
         subtitle={`${formatDate(order.createdAt)} • ${formatItemCount(itemCount)}`}
+        onBack={handleBack}
       />
 
       <ScrollView
@@ -238,7 +276,6 @@ export default function OrderDetailScreen() {
         {/* Order items */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Sản phẩm ({itemCount})</Text>
-          <Text style={styles.sectionLink} onPress={handleInvoice}>Hoá đơn</Text>
         </View>
 
         <View style={styles.itemsCard}>
@@ -257,6 +294,14 @@ export default function OrderDetailScreen() {
                 </Text>
                 {item.variantName ? (
                   <Text style={styles.productVariant}>{item.variantName}</Text>
+                ) : null}
+                {reviewedItemIds.includes(item.productId) ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                    <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+                    <Text style={{ fontSize: 11, color: colors.success, marginLeft: 3, fontWeight: '600' }}>
+                      Đã đánh giá
+                    </Text>
+                  </View>
                 ) : null}
                 <View style={styles.productQtyRow}>
                   <View style={styles.qtyChip}>
@@ -373,41 +418,51 @@ export default function OrderDetailScreen() {
       </ScrollView>
 
       {/* Bottom actions */}
-      <View style={styles.bottomBar}>
-        {order.status === 'delivered' ? (
-          <>
-            <SecondaryButton
-              title="Xem hóa đơn"
-              onPress={() => setInvoiceVisible(true)}
-              icon="receipt-outline"
-              style={styles.cancelBtn}
-            />
-            <PrimaryButton
-              title="Đánh giá sản phẩm"
-              onPress={() => setReviewVisible(true)}
-              icon="star"
-              style={styles.trackBtn}
-            />
-          </>
-        ) : (
-          <>
-            <SecondaryButton
-              title="Huỷ đơn"
-              onPress={() => setCancelVisible(true)}
-              disabled={!canCancel || canceling}
-              loading={canceling}
-              style={styles.cancelBtn}
-            />
-            <PrimaryButton
-              title="Theo dõi đơn"
-              onPress={handleTrackOrder}
-              icon="navigate"
-              disabled={order.status === 'cancelled'}
-              style={styles.trackBtn}
-            />
-          </>
-        )}
-      </View>
+      {order.status === 'cancelled' ? null : (
+        <View style={styles.bottomBar}>
+          {order.status === 'delivered' ? (
+            allItemsReviewed ? (
+              <SecondaryButton
+                title="Xem đánh giá"
+                onPress={() => {
+                  const firstProdId = order.items?.[0]?.productId;
+                  if (firstProdId) {
+                    router.push({
+                      pathname: '/product/[id]',
+                      params: { id: firstProdId },
+                    });
+                  }
+                }}
+                icon="checkmark-circle"
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <PrimaryButton
+                title="Đánh giá sản phẩm"
+                onPress={() => setReviewVisible(true)}
+                icon="star"
+                style={{ flex: 1 }}
+              />
+            )
+          ) : (
+            <>
+              <SecondaryButton
+                title="Huỷ đơn"
+                onPress={() => setCancelVisible(true)}
+                disabled={!canCancel || canceling}
+                loading={canceling}
+                style={styles.cancelBtn}
+              />
+              <PrimaryButton
+                title="Theo dõi đơn"
+                onPress={handleTrackOrder}
+                icon="navigate"
+                style={styles.trackBtn}
+              />
+            </>
+          )}
+        </View>
+      )}
 
       <ConfirmSheet
         visible={cancelVisible}
@@ -422,17 +477,13 @@ export default function OrderDetailScreen() {
         onCancel={() => setCancelVisible(false)}
       />
 
-      <InvoiceModal
-        visible={invoiceVisible}
-        onClose={() => setInvoiceVisible(false)}
-        order={order}
-      />
-
       <ReviewModal
         visible={reviewVisible}
         onClose={() => setReviewVisible(false)}
         items={order.items}
-        onSuccess={(msg) => showToast(msg)}
+        orderId={order.id}
+        reviewedItemIds={reviewedItemIds}
+        onSuccess={handleReviewSuccess}
       />
 
       <Toast

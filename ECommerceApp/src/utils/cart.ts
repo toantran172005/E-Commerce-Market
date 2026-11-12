@@ -6,14 +6,15 @@ export function toCartItem(
   quantity: number,
   variant?: ProductVariant,
 ): CartItem {
-  return {
+  const item: CartItem = {
     id: cartItemKey(product.id, variant?.id),
     product,
     quantity,
     selected: true,
-    variantId: variant?.id,
-    variantName: variant?.name,
   };
+  if (variant?.id) item.variantId = variant.id;
+  if (variant?.name) item.variantName = variant.name;
+  return item;
 }
 
 /** Key ổn định cho một dòng trong giỏ: sản phẩm + biến thể. */

@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -23,6 +24,7 @@ interface OrdersContextValue {
   addOrder: (order: Order) => void;
   cancelOrder: (id: string, reason: string) => Promise<Order>;
   reorder: (id: string) => Promise<void>;
+  markItemReviewed: (orderId: string, productId: string) => void;
   reset: () => void;
 }
 
@@ -60,6 +62,53 @@ export function OrdersProvider({
     void loadOrders();
   }, [loadOrders, resetKey]);
 
+  const transitionInFlightRef = useRef<Set<string>>(new Set());
+
+  // Tự động chuyển trạng thái đơn hàng mỗi 5s
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      orders.forEach((order) => {
+        const isActive =
+          order.status === 'pending' ||
+          order.status === 'processing' ||
+          order.status === 'shipped';
+
+        if (!isActive) return;
+
+        let nextStatusAt = order.nextStatusAt;
+        if (!nextStatusAt) {
+          const createdTime = typeof order.createdAt === 'number'
+            ? order.createdAt
+            : Date.parse(String(order.createdAt)) || now;
+          nextStatusAt = createdTime + 7000;
+        }
+
+        if (now < nextStatusAt) return;
+        if (transitionInFlightRef.current.has(order.id)) return;
+
+        transitionInFlightRef.current.add(order.id);
+
+        OrderService.advanceOrderStatusIfDue(order.id)
+          .then((updated) => {
+            if (updated) {
+              setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+              void loadNotifications();
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            transitionInFlightRef.current.delete(order.id);
+          });
+      });
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [orders, user?.uid, loadNotifications]);
+
   const getOrderById = useCallback(
     (id: string) => orders.find((o) => o.id === id),
     [orders],
@@ -92,6 +141,20 @@ export function OrdersProvider({
     }
   }, [addItem]);
 
+  const markItemReviewed = useCallback((orderId: string, productId: string) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== orderId) return o;
+        const currentReviewed = o.reviewedItemIds || [];
+        if (currentReviewed.includes(productId)) return o;
+        return {
+          ...o,
+          reviewedItemIds: [...currentReviewed, productId],
+        };
+      })
+    );
+  }, []);
+
   const reset = useCallback(() => {
     void loadOrders();
   }, [loadOrders]);
@@ -106,9 +169,10 @@ export function OrdersProvider({
       addOrder,
       cancelOrder,
       reorder,
+      markItemReviewed,
       reset,
     }),
-    [orders, loading, error, loadOrders, getOrderById, addOrder, cancelOrder, reorder, reset],
+    [orders, loading, error, loadOrders, getOrderById, addOrder, cancelOrder, reorder, markItemReviewed, reset],
   );
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>;
