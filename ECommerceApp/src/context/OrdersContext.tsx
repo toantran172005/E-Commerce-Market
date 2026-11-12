@@ -12,6 +12,7 @@ import { OrderService } from '../services/orderService';
 import { CatalogService } from '../services/catalogService';
 import { useAuth } from './AuthContext';
 import { useCart } from './CartContext';
+import { useNotifications } from './NotificationsContext';
 
 interface OrdersContextValue {
   orders: Order[];
@@ -33,6 +34,7 @@ export function OrdersProvider({
 }: { children: ReactNode; resetKey?: number }) {
   const { user } = useAuth();
   const { addItem } = useCart();
+  const { loadNotifications } = useNotifications();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +72,11 @@ export function OrdersProvider({
   const cancelOrder = useCallback(async (id: string, reason: string) => {
     const updated = await OrderService.cancelOrder(id, reason);
     setOrders((prev) => prev.map((o) => (o.id === id ? updated : o)));
+    try {
+      await loadNotifications();
+    } catch {}
     return updated;
-  }, []);
+  }, [loadNotifications]);
 
   const reorder = useCallback(async (id: string) => {
     const items = await OrderService.reorder(id);

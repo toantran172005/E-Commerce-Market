@@ -25,6 +25,7 @@ import {
 } from '../../src/components';
 import { colors, radius, spacing } from '../../src/constants/theme';
 import { useOrders } from '../../src/context/OrdersContext';
+import { useNotifications } from '../../src/context/NotificationsContext';
 import { getErrorMessage } from '../../src/services/http';
 import { formatDate, formatMoney } from '../../src/utils/format';
 import { Order, OrderTimelineStep } from '../../src/types';
@@ -71,6 +72,7 @@ export default function OrderDetailScreen() {
   const orderId = id ?? '';
 
   const { orders, loading, loadOrders, cancelOrder } = useOrders();
+  const { loadNotifications } = useNotifications();
   const order = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
 
   const [cancelVisible, setCancelVisible] = useState(false);
@@ -114,6 +116,7 @@ export default function OrderDetailScreen() {
     setCanceling(true);
     try {
       await cancelOrder(order.id, 'Người dùng huỷ đơn');
+      void loadNotifications();
       showToast('Đã huỷ đơn hàng thành công.');
     } catch (error) {
       Alert.alert('Lỗi', getErrorMessage(error));

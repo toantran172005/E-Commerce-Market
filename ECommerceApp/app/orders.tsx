@@ -20,6 +20,7 @@ import { ErrorView } from '../src/components/ErrorView';
 import { ConfirmSheet } from '../src/components/ConfirmSheet';
 import { Toast } from '../src/components/Toast';
 import { useOrders } from '../src/context/OrdersContext';
+import { useNotifications } from '../src/context/NotificationsContext';
 import { formatDate, formatMoney } from '../src/utils/format';
 import { Order, OrderStatus } from '../src/types';
 
@@ -68,6 +69,7 @@ const EMPTY_COPY: Record<TabKey, { title: string; text: string }> = {
 export default function MyOrdersScreen() {
   const router = useRouter();
   const { orders, loading, error, loadOrders, cancelOrder, reorder } = useOrders();
+  const { loadNotifications } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -113,6 +115,7 @@ export default function MyOrdersScreen() {
     if (!cancelTarget) return;
     try {
       await cancelOrder(cancelTarget.id, 'Huỷ theo yêu cầu người dùng');
+      void loadNotifications();
       setToastMessage('Đã huỷ đơn hàng');
       setToastVisible(true);
     } catch (e) {
@@ -122,7 +125,7 @@ export default function MyOrdersScreen() {
       setConfirmVisible(false);
       setCancelTarget(null);
     }
-  }, [cancelTarget, cancelOrder]);
+  }, [cancelTarget, cancelOrder, loadNotifications]);
 
   const handleReorder = useCallback(
     async (order: Order) => {

@@ -8,7 +8,7 @@ import {
   runTransaction,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { Order, OrderItem, Product, Voucher, ShippingMethod } from '../types';
 import { apiError, mapFirebaseError } from './http';
 import { computeVoucherDiscount, TAX_RATE } from '../utils/pricing';
@@ -409,8 +409,9 @@ export const OrderService = {
         transaction.set(orderRef, stripUndefined(updated));
 
         // Tạo thông báo huỷ đơn cho user (cả subcollection và root 'notifications')
-        const notifDocId = `notif_cancel_${id}`;
-        const notifRef = doc(db, 'users', order.userId, 'notifications', notifDocId);
+        const notifDocId = `notif_cancel_${id}_${Date.now()}`;
+        const targetUserId = order.userId || auth.currentUser?.uid || 'user_test_default';
+        const currentUid = auth.currentUser?.uid;
         const cancelTitle = `Huỷ đơn hàng #${id} thành công`;
         const cancelMessage = `Đơn hàng #${id} đã được huỷ thành công. Lý do: ${reason.trim()}`;
         const cancelNotif = {
@@ -423,16 +424,23 @@ export const OrderService = {
           createdAt: now,
           read: false,
         };
-        transaction.set(notifRef, cancelNotif);
+
+        transaction.set(doc(db, 'users', targetUserId, 'notifications', notifDocId), cancelNotif);
+        if (currentUid && currentUid !== targetUserId) {
+          transaction.set(doc(db, 'users', currentUid, 'notifications', notifDocId), cancelNotif);
+        }
+
         transaction.set(doc(db, 'notifications', notifDocId), {
           id: notifDocId,
-          userId: order.userId,
+          userId: currentUid || targetUserId,
           title: cancelTitle,
           message: cancelMessage,
           orderId: id,
           isRead: false,
           type: 'order',
           date: now,
+          createdAt: now,
+          read: false,
         });
 
         return updated;

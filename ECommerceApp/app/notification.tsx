@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenHeader, PrimaryButton, SecondaryButton, LoadingView, EmptyState } from '../src/components';
 import { useAuth } from '../src/context/AuthContext';
 import { useNotifications } from '../src/context/NotificationsContext';
@@ -91,6 +91,14 @@ export default function NotificationScreen() {
       router.replace('/(tabs)/home');
     }
   }, [router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isGuest && user?.uid) {
+        void loadNotifications();
+      }
+    }, [isGuest, user?.uid, loadNotifications])
+  );
 
   useEffect(() => {
     if (isGuest) {
