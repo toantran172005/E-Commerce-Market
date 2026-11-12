@@ -10,3 +10,8 @@ dist/
 # Environment variables
 .env
 .env.*
+
+# Temporary files
+~$*
+
+.gitignore

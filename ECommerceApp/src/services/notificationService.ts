@@ -58,46 +58,46 @@ export const NotificationService = {
     const uid = resolveUid(userId);
     if (!uid) return [];
 
-    let notifs: AppNotification[] = [];
+    const notifsMap = new Map<string, AppNotification>();
+
     try {
       const snap = await getDocs(collection(db, 'users', uid, 'notifications'));
-      if (!snap.empty) {
-        notifs = snap.docs.map((d) => {
-          const data = d.data() as Partial<AppNotification>;
-          return {
+      snap.docs.forEach((d) => {
+        const data = d.data() as Partial<AppNotification>;
+        notifsMap.set(d.id, {
+          id: d.id,
+          type: (data.type || 'order') as NotificationType,
+          title: data.title || 'Thông báo hệ thống',
+          message: data.message || 'Bạn có thông báo mới từ hệ thống.',
+          createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
+          read: Boolean(data.read),
+          orderId: (data as any).orderId || data.data?.orderId,
+          data: data.data || ((data as any).orderId ? { orderId: (data as any).orderId } : {}),
+        });
+      });
+    } catch {}
+
+    try {
+      const q = query(collection(db, 'notifications'), where('userId', '==', uid));
+      const rootSnap = await getDocs(q);
+      rootSnap.docs.forEach((d) => {
+        if (!notifsMap.has(d.id)) {
+          const data = d.data();
+          notifsMap.set(d.id, {
             id: d.id,
             type: (data.type || 'order') as NotificationType,
             title: data.title || 'Thông báo hệ thống',
             message: data.message || 'Bạn có thông báo mới từ hệ thống.',
-            createdAt: data.createdAt ? String(data.createdAt) : new Date().toISOString(),
-            read: Boolean(data.read),
+            createdAt: data.date ? String(data.date) : data.createdAt ? String(data.createdAt) : new Date().toISOString(),
+            read: Boolean(data.isRead ?? data.read),
             orderId: (data as any).orderId || data.data?.orderId,
             data: data.data || ((data as any).orderId ? { orderId: (data as any).orderId } : {}),
-          };
-        });
-      } else {
-        // Fallback: Tìm trong root collection 'notifications'
-        const q = query(collection(db, 'notifications'), where('userId', '==', uid));
-        const rootSnap = await getDocs(q);
-        if (!rootSnap.empty) {
-          notifs = rootSnap.docs.map((d) => {
-            const data = d.data();
-            return {
-              id: d.id,
-              type: (data.type || 'order') as NotificationType,
-              title: data.title || 'Thông báo hệ thống',
-              message: data.message || 'Bạn có thông báo mới từ hệ thống.',
-              createdAt: data.date ? String(data.date) : new Date().toISOString(),
-              read: Boolean(data.isRead),
-              orderId: (data as any).orderId,
-              data: (data as any).orderId ? { orderId: (data as any).orderId } : {},
-            };
           });
         }
-      }
-    } catch {
-      notifs = [];
-    }
+      });
+    } catch {}
+
+    let notifs = Array.from(notifsMap.values());
 
     const readIds = await getPersistedReadIds(uid);
     if (readIds.size > 0) {
