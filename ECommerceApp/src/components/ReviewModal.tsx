@@ -17,16 +17,28 @@ import { colors, radius, spacing } from '../constants/theme';
 import { OrderItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { CatalogService } from '../services/catalogService';
+import { submitReview } from '../services/reviewService';
 import { PrimaryButton, SecondaryButton } from './Button';
 
 interface ReviewModalProps {
   visible: boolean;
   onClose: () => void;
-  items: OrderItem[];
-  onSuccess: (message: string) => void;
+  items?: OrderItem[];
+  item?: OrderItem | null;
+  orderId?: string;
+  reviewedItemIds?: string[];
+  onSuccess: (message: string, productId?: string) => void;
 }
 
-export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalProps) {
+export function ReviewModal({
+  visible,
+  onClose,
+  items = [],
+  item = null,
+  orderId = '',
+  reviewedItemIds = [],
+  onSuccess,
+}: ReviewModalProps) {
   const { user } = useAuth();
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [rating, setRating] = useState(5);
@@ -34,7 +46,18 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const currentItem = items[selectedProductIndex] || items[0];
+  const effectiveItems = item ? [item] : items;
+  const currentItem = item || effectiveItems[selectedProductIndex] || effectiveItems[0];
+  const isCurrentReviewed = currentItem ? reviewedItemIds.includes(currentItem.productId) : false;
+
+  React.useEffect(() => {
+    if (visible && effectiveItems.length > 0) {
+      const firstUnreviewedIdx = effectiveItems.findIndex((it) => !reviewedItemIds.includes(it.productId));
+      if (firstUnreviewedIdx >= 0) {
+        setSelectedProductIndex(firstUnreviewedIdx);
+      }
+    }
+  }, [visible, effectiveItems, reviewedItemIds]);
 
   const handlePickPhoto = async () => {
     try {
@@ -66,6 +89,10 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
 
   const handleSubmit = async () => {
     if (!currentItem) return;
+    if (isCurrentReviewed) {
+      Alert.alert('Thông báo', 'Bạn đã đánh giá sản phẩm này rồi. Mỗi khách hàng chỉ được đánh giá 1 lần!');
+      return;
+    }
     if (!comment.trim()) {
       Alert.alert('Chưa nhập đánh giá', 'Vui lòng chia sẻ cảm nhận của bạn về sản phẩm.');
       return;
@@ -73,24 +100,37 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
 
     setSubmitting(true);
     try {
-      await CatalogService.addProductReview(currentItem.productId, {
-        userId: user?.uid || 'user_guest',
-        userName: user?.fullName || 'Khách hàng thân thiết',
-        userAvatar: user?.avatarUrl,
-        rating,
-        content: comment.trim(),
-        images: photos.length > 0 ? photos : undefined,
-        verifiedPurchase: true,
-        createdAt: new Date().toISOString(),
-      });
+      if (orderId && currentItem.productId) {
+        await submitReview({
+          productId: currentItem.productId,
+          orderId,
+          userId: user?.uid || 'user_guest',
+          userName: user?.fullName || 'Khách hàng',
+          userAvatar: user?.avatarUrl,
+          rating,
+          comment: comment.trim(),
+          images: photos,
+        });
+      } else if (currentItem.productId) {
+        await CatalogService.addProductReview(currentItem.productId, {
+          userId: user?.uid || 'user_guest',
+          userName: user?.fullName || 'Khách hàng thân thiết',
+          userAvatar: user?.avatarUrl,
+          rating,
+          comment: comment.trim(),
+          images: photos.length > 0 ? photos : undefined,
+          createdAt: new Date().toISOString(),
+        });
+      }
 
+      const ratedProdId = currentItem.productId;
       setComment('');
       setPhotos([]);
       setRating(5);
       onClose();
-      onSuccess(`Đã gửi đánh giá thành công cho sản phẩm "${currentItem.name}"!`);
-    } catch {
-      Alert.alert('Lỗi', 'Không thể gửi đánh giá. Vui lòng thử lại sau.');
+      onSuccess(`Đã gửi đánh giá thành công cho sản phẩm "${currentItem.name}"!`, ratedProdId);
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.');
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +165,7 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
           keyboardShouldPersistTaps="handled"
         >
           {/* Chọn sản phẩm nếu có nhiều hơn 1 sản phẩm */}
-          {items.length > 1 ? (
+          {!item && items.length > 1 ? (
             <View style={styles.selectorWrap}>
               <Text style={styles.fieldLabel}>Chọn sản phẩm muốn đánh giá:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.prodScroll}>
@@ -146,7 +186,7 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
                       ]}
                       numberOfLines={1}
                     >
-                      {item.name}
+                      {item.name} {reviewedItemIds.includes(item.productId) ? '✓' : ''}
                     </Text>
                   </Pressable>
                 ))}
@@ -162,6 +202,14 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
                 <Text style={styles.bannerName} numberOfLines={2}>{currentItem.name}</Text>
                 {currentItem.variantName ? (
                   <Text style={styles.bannerVariant}>{currentItem.variantName}</Text>
+                ) : null}
+                {isCurrentReviewed ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                    <Text style={{ fontSize: 12, color: colors.success, marginLeft: 4, fontWeight: '600' }}>
+                      Đã đánh giá
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -242,10 +290,11 @@ export function ReviewModal({ visible, onClose, items, onSuccess }: ReviewModalP
           {/* Nút gửi */}
           <View style={styles.actionSection}>
             <PrimaryButton
-              title="Gửi đánh giá"
+              title={isCurrentReviewed ? "Đã đánh giá" : "Gửi đánh giá"}
               onPress={handleSubmit}
               loading={submitting}
-              icon="send"
+              disabled={isCurrentReviewed}
+              icon={isCurrentReviewed ? "checkmark-circle" : "send"}
             />
           </View>
         </ScrollView>

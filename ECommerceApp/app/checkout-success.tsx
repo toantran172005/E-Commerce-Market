@@ -96,9 +96,9 @@ export default function CheckoutSuccessScreen() {
   }
 
   const handleViewOrderDetails = () => {
-    router.push({
+    router.replace({
       pathname: '/order/[id]',
-      params: { id: order.id },
+      params: { id: order.id, fromSuccess: '1' },
     });
   };
 

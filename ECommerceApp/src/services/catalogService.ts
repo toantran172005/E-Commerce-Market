@@ -5,6 +5,8 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  query,
+  where,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
@@ -314,9 +316,35 @@ export const CatalogService = {
       const snap = await getDoc(doc(db, 'products', id));
       if (snap.exists()) {
         const raw = snap.data() as any;
+        let rating = Number(raw.rating ?? 5.0);
+        let reviewCount = Number(raw.reviewCount ?? 0);
+
+        // Nạp và tính toán lại đánh giá thật từ collection 'reviews'
+        try {
+          const rq = query(collection(db, 'reviews'), where('productId', '==', id));
+          const rSnap = await getDocs(rq);
+          if (!rSnap.empty) {
+            let sum = 0;
+            let count = 0;
+            rSnap.forEach((rd) => {
+              const rVal = Number((rd.data() as any)?.rating);
+              if (Number.isFinite(rVal) && rVal >= 1 && rVal <= 5) {
+                sum += rVal;
+                count += 1;
+              }
+            });
+            if (count > 0) {
+              rating = Math.round((sum / count) * 10) / 10;
+              reviewCount = count;
+            }
+          }
+        } catch {}
+
         return {
           id: snap.id,
           ...raw,
+          rating,
+          reviewCount,
           imageUrl: raw.imageUrl || raw.image || raw.images?.[0] || '',
         };
       }
@@ -327,17 +355,62 @@ export const CatalogService = {
     }
   },
 
-  /** Lấy danh sách đánh giá của sản phẩm từ Firestore */
+  /** Lấy danh sách đánh giá của sản phẩm từ Firestore collection 'reviews' */
   async getProductReviews(productId: string): Promise<Review[]> {
     try {
-      const snap = await getDocs(collection(db, 'products', productId, 'reviews'));
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Review, 'id'>) }));
+      const reviewsMap = new Map<string, Review>();
+
+      // 1. Đọc từ root collection 'reviews'
+      try {
+        const reviewsQuery = query(collection(db, 'reviews'), where('productId', '==', productId));
+        const reviewsSnap = await getDocs(reviewsQuery);
+        reviewsSnap.docs.forEach((d) => {
+          const data = d.data() as any;
+          reviewsMap.set(d.id, {
+            id: d.id,
+            productId,
+            orderId: data.orderId,
+            userId: data.userId || 'user_demo',
+            userName: data.userName || 'Khách hàng',
+            userAvatar: data.userAvatar,
+            rating: Number(data.rating || 5),
+            comment: data.comment || '',
+            createdAt: typeof data.createdAt === 'number' ? new Date(data.createdAt).toISOString() : String(data.createdAt || new Date().toISOString()),
+            images: Array.isArray(data.images) ? data.images : undefined,
+          });
+        });
+      } catch {}
+
+      // 2. Fallback đọc subcollection 'reviews' nếu có
+      try {
+        const subSnap = await getDocs(collection(db, 'products', productId, 'reviews'));
+        subSnap.docs.forEach((d) => {
+          if (!reviewsMap.has(d.id)) {
+            const data = d.data() as any;
+            reviewsMap.set(d.id, {
+              id: d.id,
+              productId,
+              userId: data.userId || 'user_demo',
+              userName: data.userName || 'Khách hàng',
+              userAvatar: data.userAvatar,
+              rating: Number(data.rating || 5),
+              comment: data.comment || '',
+              createdAt: String(data.createdAt || new Date().toISOString()),
+              images: Array.isArray(data.images) ? data.images : undefined,
+            });
+          }
+        });
+      } catch {}
+
+      return Array.from(reviewsMap.values()).sort((a, b) =>
+        String(b.createdAt).localeCompare(String(a.createdAt))
+      );
     } catch {
       return [];
     }
   },
 
-  /** Thêm đánh giá mới cho sản phẩm vào Firestore */
+  /** Thêm đánh giá mới cho sản phẩm vào Firestore collection 'reviews' */
   async addProductReview(
     productId: string,
     review: Omit<Review, 'id' | 'productId'>,
@@ -350,7 +423,7 @@ export const CatalogService = {
     };
 
     try {
-      const ref = doc(collection(db, 'products', productId, 'reviews'), newReview.id);
+      const ref = doc(collection(db, 'reviews'), newReview.id);
       await setDoc(ref, newReview);
       return newReview;
     } catch (err: unknown) {
@@ -361,7 +434,7 @@ export const CatalogService = {
   /** Xoá một đánh giá khỏi sản phẩm */
   async deleteProductReview(productId: string, reviewId: string): Promise<void> {
     try {
-      await deleteDoc(doc(db, 'products', productId, 'reviews', reviewId));
+      await deleteDoc(doc(db, 'reviews', reviewId));
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể xoá đánh giá sản phẩm.');
     }

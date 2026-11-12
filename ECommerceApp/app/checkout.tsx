@@ -89,7 +89,7 @@ export default function CheckoutScreen() {
   );
 
   const selectedCount = useMemo(
-    () => selectedItems.reduce((sum, item) => sum + item.quantity, 0),
+    () => new Set(selectedItems.map((item) => item.product?.id ?? item.id)).size,
     [selectedItems],
   );
 

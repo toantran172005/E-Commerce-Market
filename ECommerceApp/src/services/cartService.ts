@@ -10,6 +10,25 @@ import { db } from '../firebaseConfig';
 import { CartItem } from '../types';
 import { mapFirebaseError } from './http';
 
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const result: any = Array.isArray(obj) ? [] : {};
+  Object.keys(obj).forEach((key) => {
+    const value = obj[key];
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        result[key] = value.map((item) =>
+          typeof item === 'object' && item !== null ? stripUndefined(item) : item
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = stripUndefined(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  });
+  return result;
+}
+
 /**
  * Service quản lý giỏ hàng (Cart) lưu trữ bền vững trên Cloud Firestore cho từng người dùng.
  */
@@ -39,10 +58,10 @@ export const CartService = {
     if (!uid || !item?.id) return;
     try {
       const itemRef = doc(db, 'users', uid, 'cart', item.id);
-      await setDoc(itemRef, {
+      await setDoc(itemRef, stripUndefined({
         ...item,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      }), { merge: true });
     } catch (err: unknown) {
       throw mapFirebaseError(err, 'Không thể cập nhật sản phẩm trong giỏ hàng.');
     }
@@ -61,10 +80,10 @@ export const CartService = {
           batch.delete(d.ref);
         }
       });
-      // Ghi các item mới
+      // Ghi các item mới, làm sạch các trường undefined
       items.forEach((item) => {
         const itemRef = doc(collection(db, 'users', uid, 'cart'), item.id);
-        batch.set(itemRef, item, { merge: true });
+        batch.set(itemRef, stripUndefined(item), { merge: true });
       });
       await batch.commit();
     } catch (err: unknown) {

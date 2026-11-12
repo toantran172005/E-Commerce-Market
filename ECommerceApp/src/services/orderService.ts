@@ -9,7 +9,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
-import { Order, OrderItem, Product, Voucher, ShippingMethod } from '../types';
+import { Order, OrderItem, OrderStatus, OrderTimelineStep, Product, Voucher, ShippingMethod } from '../types';
 import { apiError, mapFirebaseError } from './http';
 import { computeVoucherDiscount, TAX_RATE } from '../utils/pricing';
 
@@ -260,6 +260,9 @@ export const OrderService = {
           voucherCode: discount > 0 ? input.voucherCode?.trim().toUpperCase() : undefined,
           createdAt: now,
           canCancel: true,
+          reviewedItemIds: [],
+          nextStatusAt: Date.now() + 7000,
+          updatedAt: now,
           timeline: [
             { key: 'placed', label: 'Đặt hàng thành công', icon: 'checkmark-circle', date: now, completed: true },
             { key: 'confirmed', label: 'Đã xác nhận', icon: 'cube', date: now, completed: false },
@@ -479,5 +482,130 @@ export const OrderService = {
     }
 
     return validItems;
+  },
+
+  /**
+   * Tự động chuyển trạng thái đơn hàng mỗi 5s:
+   * pending (Chờ xử lý, canCancel: true)
+   * -> sau 5s -> processing (Đã xác nhận, canCancel: true)
+   * -> sau 5s -> shipped (Đang vận chuyển, canCancel: false, khoá nút huỷ)
+   * -> sau 5s -> delivered (Đã giao hàng, canCancel: false, khoá các nút, mở đánh giá)
+   */
+  async advanceOrderStatusIfDue(orderId: string): Promise<Order | null> {
+    const orderRef = doc(db, 'orders', orderId);
+
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(orderRef);
+        if (!snap.exists()) return null;
+
+        const order = snap.data() as Order;
+        if (order.status === 'cancelled' || order.status === 'delivered') {
+          return null;
+        }
+
+        const now = Date.now();
+        const nowIso = new Date(now).toISOString();
+
+        // Kiểm tra điều kiện thời gian 7s
+        let nextStatusAt = order.nextStatusAt;
+        if (!nextStatusAt) {
+          const createdTime = typeof order.createdAt === 'number'
+            ? order.createdAt
+            : Date.parse(String(order.createdAt)) || now;
+          nextStatusAt = createdTime + 7000;
+        }
+
+        if (now < nextStatusAt) {
+          return null;
+        }
+
+        let nextStatus: OrderStatus | null = null;
+        let canCancel = false;
+        let notifTitle = '';
+        let notifMessage = '';
+
+        if (order.status === 'pending') {
+          nextStatus = 'processing';
+          canCancel = true; // Ở pending & processing được huỷ
+          notifTitle = `Đơn hàng #${orderId} đã được xác nhận`;
+          notifMessage = `Đơn hàng #${orderId} đã được người bán xác nhận và đang đóng gói.`;
+        } else if (order.status === 'processing') {
+          nextStatus = 'shipped';
+          canCancel = false; // Đang vận chuyển -> khoá nút huỷ!
+          notifTitle = `Đơn hàng #${orderId} đang vận chuyển 🚚`;
+          notifMessage = `Đơn hàng #${orderId} đã được giao cho đơn vị vận chuyển và đang trên đường giao đến bạn.`;
+        } else if (order.status === 'shipped') {
+          nextStatus = 'delivered';
+          canCancel = false; // Đã giao hàng -> khoá nút huỷ, mở đánh giá!
+          notifTitle = `Đơn hàng #${orderId} đã giao thành công 🎉`;
+          notifMessage = `Đơn hàng #${orderId} đã được giao thành công. Hãy đánh giá các sản phẩm bạn nhé!`;
+        }
+
+        if (!nextStatus) return null;
+
+        const updatedTimeline: OrderTimelineStep[] = (order.timeline || []).map((step) => {
+          if (nextStatus === 'processing' && step.key === 'confirmed') {
+            return { ...step, completed: true, date: nowIso };
+          }
+          if (nextStatus === 'shipped' && (step.key === 'confirmed' || step.key === 'shipping')) {
+            return { ...step, completed: true, date: nowIso };
+          }
+          if (nextStatus === 'delivered') {
+            return { ...step, completed: true, date: nowIso };
+          }
+          return step;
+        });
+
+        const updatedOrder: Order = {
+          ...order,
+          status: nextStatus,
+          canCancel,
+          timeline: updatedTimeline,
+          updatedAt: nowIso,
+          nextStatusAt: nextStatus === 'delivered' ? null : now + 7000,
+        };
+
+        transaction.set(orderRef, stripUndefined(updatedOrder));
+
+        // Tạo thông báo cho user
+        const notifDocId = `notif_status_${orderId}_${nextStatus}_${now}`;
+        const targetUserId = order.userId || auth.currentUser?.uid || 'user_test_default';
+        const currentUid = auth.currentUser?.uid;
+
+        const notifPayload = {
+          id: notifDocId,
+          type: 'order',
+          title: notifTitle,
+          message: notifMessage,
+          orderId,
+          data: { orderId },
+          createdAt: nowIso,
+          read: false,
+        };
+
+        transaction.set(doc(db, 'users', targetUserId, 'notifications', notifDocId), notifPayload);
+        if (currentUid && currentUid !== targetUserId) {
+          transaction.set(doc(db, 'users', currentUid, 'notifications', notifDocId), notifPayload);
+        }
+
+        transaction.set(doc(db, 'notifications', notifDocId), {
+          id: notifDocId,
+          userId: currentUid || targetUserId,
+          title: notifTitle,
+          message: notifMessage,
+          orderId,
+          isRead: false,
+          type: 'order',
+          date: nowIso,
+          createdAt: nowIso,
+          read: false,
+        });
+
+        return updatedOrder;
+      });
+    } catch {
+      return null;
+    }
   },
 };
