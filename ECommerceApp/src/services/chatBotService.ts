@@ -1191,13 +1191,17 @@ function fallbackIntent(message: string, runtime: ChatBotRuntime): ChatIntent {
     intent = 'remove_from_favourites';
     reply = 'Mình sẽ kiểm tra và xóa sản phẩm khỏi danh sách yêu thích cho bạn.';
   } else if (
-    /(co.*yeu thich.*nao|danh sach.*yeu thich|xem.*yeu thich|nhung.*yeu thich|cac.*yeu thich|yeu thich.*co gi|co.*thich.*nao|xem.*thich|san pham.*yeu thich)/.test(
+    /(co.*yeu thich|yeu thich.*nao|danh sach.*yeu thich|xem.*yeu thich|nhung.*yeu thich|cac.*yeu thich|yeu thich.*co gi|co.*thich.*nao|xem.*thich|san pham.*yeu thich|nhung san pham yeu thich|toi co nhung)/i.test(
       normalized
-    )
+    ) &&
+    !/(them|luu|add|dua vao|bo vao|cho vao)/i.test(normalized)
   ) {
     intent = 'view_favourites';
     reply = '';
-  } else if (/(yeu thich|favorite|favourite|tym|tha tim|them.*thich)/.test(normalized)) {
+  } else if (
+    /(them|luu|add|dua vao|bo vao|cho vao).*?(yeu thich|thich|favorite|tym)/i.test(normalized) ||
+    /(yeu thich|thich|favorite).*?(mon nay|san pham nay|cai nay|em nay)/i.test(normalized)
+  ) {
     intent = 'add_to_favourites';
     reply = 'Mình sẽ thêm sản phẩm vào danh sách yêu thích của bạn.';
   } else if (
@@ -1362,7 +1366,33 @@ async function handleSearchProducts(
 ): Promise<ChatBotResponse> {
   const all = await runtime.catalog.getAllProducts();
 
-  // 1. If DeepSeek returned specific product IDs, prioritize them immediately
+  // 1. Extract products explicitly mentioned in the AI's reply text
+  if (intent.reply) {
+    const replyNorm = normalizeVietnamese(intent.reply);
+    const mentionedInReply = all.filter((p) => {
+      const pNameNorm = normalizeVietnamese(p.name);
+      if (replyNorm.includes(pNameNorm)) return true;
+      const tokens = pNameNorm.split(/\s+/).filter((w) => w.length > 2);
+      if (tokens.length >= 2) {
+        for (let i = 0; i < tokens.length - 1; i++) {
+          if (replyNorm.includes(`${tokens[i]} ${tokens[i + 1]}`)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+
+    if (mentionedInReply.length > 0) {
+      return {
+        intent: 'search_products',
+        reply: intent.reply,
+        products: mentionedInReply.slice(0, 5),
+      };
+    }
+  }
+
+  // 2. If DeepSeek returned specific product IDs, prioritize them
   if (intent.productIds && intent.productIds.length > 0) {
     let matched = all.filter((p) => intent.productIds!.includes(p.id));
     if (intent.productQuery?.maxPrice != null) {
@@ -1380,7 +1410,7 @@ async function handleSearchProducts(
     }
   }
 
-  // 2. Check if user is asking for best-sellers / popular (strictly avoid matching "top" in "laptop")
+  // 3. Check if user is asking for best-sellers / popular (strictly avoid matching "top" in "laptop")
   const qStr = normalizeVietnamese(intent.productQuery?.query || intent.productName || '');
   const isSpecificCat = /(laptop|dien thoai|tai nghe|dong ho|may tinh|ipad|macbook|tablet|asus|acer|dell|hp|lenovo|xiaomi|samsung|apple|sony)/i.test(qStr);
   const isPopularQuery = !isSpecificCat && (
@@ -1432,27 +1462,6 @@ async function handleSearchProducts(
       if (byQuery.length > 0) {
         products = byQuery;
       }
-    }
-  }
-
-  // 3. If query didn't find products directly, check if AI's reply mentioned available catalog products
-  if (products.length === 0 && intent.reply) {
-    const replyNorm = normalizeVietnamese(intent.reply);
-    const mentioned = all.filter((p) => {
-      const pNameNorm = normalizeVietnamese(p.name);
-      if (replyNorm.includes(pNameNorm)) return true;
-      const tokens = pNameNorm.split(/\s+/).filter((w) => w.length > 2);
-      if (tokens.length >= 2) {
-        return replyNorm.includes(`${tokens[0]} ${tokens[1]}`);
-      }
-      return false;
-    });
-    if (mentioned.length > 0) {
-      return {
-        intent: 'search_products',
-        reply: intent.reply,
-        products: mentioned.slice(0, 5),
-      };
     }
   }
 

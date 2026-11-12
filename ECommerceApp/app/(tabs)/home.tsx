@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, spacing } from '../../src/constants/theme';
-import { CatalogService } from '../../src/services/catalogService';
+import { CatalogService, CORE_STORE_CATEGORIES } from '../../src/services/catalogService';
 import { useProductSearch } from '../../src/hooks/useProductSearch';
 import { useProductFilter } from '../../src/context/ProductFilterContext';
 import { useCart } from '../../src/context/CartContext';
@@ -203,12 +203,14 @@ export default function HomeScreen() {
   const [isGrid, setIsGrid] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [homeCategories, setHomeCategories] = useState<Category[]>([]);
+  const [homeCategories, setHomeCategories] = useState<Category[]>(CORE_STORE_CATEGORIES);
 
   useEffect(() => {
     let isMounted = true;
     CatalogService.getCategories().then((cats) => {
-      if (isMounted) setHomeCategories(cats.slice(0, 7));
+      if (isMounted && cats.length > 0) {
+        setHomeCategories(cats);
+      }
     }).catch(() => {});
     return () => { isMounted = false; };
   }, []);
@@ -274,7 +276,7 @@ export default function HomeScreen() {
     setRefreshing(true);
     try {
       const cats = await CatalogService.getCategories();
-      setHomeCategories(cats.slice(0, 7));
+      if (cats.length > 0) setHomeCategories(cats);
       await refresh();
     } catch {
       // ignore
